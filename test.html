@@ -1,0 +1,581 @@
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QTextEdit, QTabWidget, QAction, QToolButton, QLineEdit
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+import sys
+import subprocess
+import requests
+import os
+import time
+import socket
+import json
+import urllib.parse
+import random
+import tempfile
+
+class ServoThread(QThread):
+    content_ready = pyqtSignal(str, str)  # Signal to emit content path and tab_id
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.running = True
+        self.queue = []
+        self.port = self._find_free_port()
+        # More specific user agents that mimic mainstream browsers
+        self.user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0"
+        ]
+        self.current_user_agent = self.user_agents[0]
+        self.temp_dir = tempfile.mkdtemp(prefix="servo_")
+        self.render_timeout = 30  # Increased timeout for complex pages
+        
+    def _find_free_port(self):
+        """Find a free port to use for communication with Servo."""
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('', 0))
+        port = s.getsockname()[1]
+        s.close()
+        return port
+        
+    def add_url_to_queue(self, url, tab_id):
+        """Add URL to processing queue."""
+        self.queue.append((url, tab_id))
+        
+    def run(self):
+        # Set up startup info to hide console window on Windows
+        startupinfo = None
+        creationflags = 0
+        if os.name == "nt":  # Windows
+            startupinfo = subprocess.STARTUPINFO()
+            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            creationflags = subprocess.CREATE_NO_WINDOW
+
+        # Start IPC server socket
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server.bind(('localhost', self.port))
+        server.listen(5)
+        server.settimeout(0.5)  # Non-blocking with a timeout
+        
+        while self.running:
+            # Process any URLs in the queue
+            if self.queue:
+                url, tab_id = self.queue.pop(0)
+                
+                # Create a unique output file for each request
+                output_file = os.path.join(self.temp_dir, f"{tab_id}_{int(time.time())}.png")
+                
+                # Special handling for search engines
+                if "google" in url.lower() or "duckduckgo" in url.lower() or "bing" in url.lower():
+                    # For search engines, try with specific flags and settings
+                    self.current_user_agent = random.choice(self.user_agents)
+                
+                # Add specific flags for better compatibility with search engines
+                servo_cmd = [
+                    r"C:\\Users\\cc\\Desktop\\servo\\target\\release\\servo.exe",
+                    url,
+                    f"--user-agent={self.current_user_agent}",
+                    "--headless",
+                    f"--output={output_file}",
+                    "--gpu=disabled",  # Disable GPU for better compatibility
+                    "--no-webrender-stats",
+                    "--certificate-path=mozilla",  # Use Mozilla's trusted certificates
+                    "--devtools",  # Enable dev tools for better debugging
+                    f"--ipc-port={self.port}",
+                    "--allow-third-party-cookies",  # Enable cookies for better site compatibility
+                    "--no-sandbox",  # More permissive execution mode
+                    "--js-backtrace",  # Enable JavaScript backtraces for debugging
+                ]
+                
+                # Special flags for search engines
+                if "google" in url.lower() or "duckduckgo" in url.lower() or "bing" in url.lower():
+                    servo_cmd.extend([
+                        "--disable-http-cache=false",  # Enable HTTP cache for faster loading
+                        "--max-wait-for-load=30000",   # Longer wait time for search pages
+                    ])
+                
+                try:
+                    # Run Servo command to render the page
+                    servo_process = subprocess.Popen(
+                        servo_cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        startupinfo=startupinfo,
+                        creationflags=creationflags
+                    )
+                    
+                    # Wait for process to complete with an increased timeout
+                    try:
+                        stdout, stderr = servo_process.communicate(timeout=self.render_timeout)
+                        
+                        # Check if output file was created
+                        if os.path.exists(output_file):
+                            # Handle the file size check - empty renders are suspicious
+                            file_size = os.path.getsize(output_file)
+                            if file_size < 1000:  # If render is suspiciously small
+                                print(f"Warning: Small output file ({file_size} bytes) for {url}, falling back to requests method")
+                                self._fallback_rendering(url, tab_id)
+                            else:
+                                # Send path to rendered content
+                                self.content_ready.emit(output_file, tab_id)
+                        else:
+                            # If Servo failed to render, fallback to requests method
+                            print(f"Output file not created for {url}, falling back to requests method")
+                            self._fallback_rendering(url, tab_id)
+                            
+                    except subprocess.TimeoutExpired:
+                        servo_process.kill()
+                        print(f"Timeout rendering {url}, falling back to requests method")
+                        self._fallback_rendering(url, tab_id)
+                        
+                except Exception as e:
+                    print(f"Error rendering {url}: {str(e)}")
+                    self._fallback_rendering(url, tab_id)
+                
+            # Check for any data from Servo via IPC
+            try:
+                client, addr = server.accept()
+                data = client.recv(4096)
+                if data:
+                    # Process any IPC messages from Servo
+                    try:
+                        message = json.loads(data.decode('utf-8'))
+                        # Handle various message types from Servo
+                        if 'event' in message:
+                            if message['event'] == 'page_loaded':
+                                pass  # Handle page loaded event
+                            elif message['event'] == 'error':
+                                pass  # Handle error events
+                    except json.JSONDecodeError:
+                        pass
+                client.close()
+            except socket.timeout:
+                # This is expected due to the timeout we set
+                pass
+            
+            # Small sleep to prevent high CPU usage
+            time.sleep(0.1)
+        
+        # Clean up when thread stops
+        server.close()
+        try:
+            import shutil
+            shutil.rmtree(self.temp_dir)  # Clean up temp directory
+        except:
+            pass
+    
+    def _fallback_rendering(self, url, tab_id):
+        """Enhanced fallback to basic HTML rendering using requests with additional headers."""
+        try:
+            # Rotate user agent for better success rate
+            self.current_user_agent = random.choice(self.user_agents)
+            
+            headers = {
+                'User-Agent': self.current_user_agent,
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Cache-Control': 'max-age=0',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'DNT': '1',  # Do Not Track
+            }
+            
+            # Use a session to maintain cookies
+            session = requests.Session()
+            
+            # Try to mimic a real browser by first visiting the domain home page
+            parsed_url = urllib.parse.urlparse(url)
+            domain_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
+            if domain_url != url:
+                try:
+                    home_response = session.get(domain_url, headers=headers, timeout=10)
+                    # Small delay to mimic human behavior
+                    time.sleep(0.5)
+                except:
+                    pass  # Ignore errors on the pre-request
+            
+            # Now make the actual request
+            response = session.get(url, headers=headers, timeout=10)
+            
+            # Create HTML content with redirect info if needed
+            if response.history:
+                redirect_info = f"<div style='background-color:#FFFFCC; padding:10px; margin:5px;'>"
+                redirect_info += f"<p>Redirected from {url} to {response.url}</p></div>"
+                html_content = redirect_info + response.text
+            else:
+                html_content = response.text
+                
+            # Add debugging info
+            debug_info = f"""
+            <div style='background-color:#E8F5E9; padding:10px; margin:5px; font-family:monospace; font-size:12px;'>
+                <p><strong>URL:</strong> {response.url}</p>
+                <p><strong>Status:</strong> {response.status_code}</p>
+                <p><strong>Content-Type:</strong> {response.headers.get('Content-Type', 'Unknown')}</p>
+                <p><strong>User-Agent:</strong> {self.current_user_agent}</p>
+                <p><strong>Note:</strong> Using fallback HTML renderer (Servo rendering failed)</p>
+            </div>
+            """
+
+            html_content = debug_info + html_content
+            
+            # Create a temporary HTML file
+            temp_html = os.path.join(self.temp_dir, f"{tab_id}_fallback.html")
+            with open(temp_html, 'w', encoding='utf-8', errors='replace') as f:
+                f.write(html_content)
+                
+            # Emit the HTML file path
+            self.content_ready.emit(temp_html, tab_id)
+            
+        except Exception as e:
+            print(f"Fallback rendering error for {url}: {str(e)}")
+            error_msg = f"""
+            <div style='background-color:#FFEBEE; padding:20px; margin:10px;'>
+                <h2>Error loading {url}</h2>
+                <p>{str(e)}</p>
+                <p>Both Servo rendering and fallback method failed.</p>
+            </div>
+            """
+            # Create a temporary HTML file for the error
+            temp_error = os.path.join(self.temp_dir, f"{tab_id}_error.html")
+            with open(temp_error, 'w', encoding='utf-8') as f:
+                f.write(error_msg)
+                
+            self.content_ready.emit(temp_error, tab_id)
+            
+    def set_user_agent(self, ua_index):
+        """Set the current user agent."""
+        if 0 <= ua_index < len(self.user_agents):
+            self.current_user_agent = self.user_agents[ua_index]
+            
+    def stop(self):
+        """Stop the thread safely."""
+        self.running = False
+        self.wait()
+
+class BrowserTab(QWidget):
+    def __init__(self, servo_thread, tab_id, url=None):
+        super().__init__()
+        self.servo_thread = servo_thread
+        self.tab_id = tab_id
+        self.layout = QVBoxLayout()
+        self.default_search_engine = "https://duckduckgo.com/html/?q="
+        
+        # URL/Search Input
+        self.url_bar = QLineEdit()
+        self.url_bar.setPlaceholderText("Enter URL or search query and press Enter")
+        self.url_bar.returnPressed.connect(self.handle_input)
+        
+        # Use QWebEngineView instead of QTextEdit for better rendering
+        self.web_view = QWebEngineView()
+        
+        # Add Widgets to Layout
+        self.layout.addWidget(self.url_bar)
+        self.layout.addWidget(self.web_view)
+        self.setLayout(self.layout)
+        
+        # Track the current URL for title purposes
+        self.current_url = ""
+        
+        if url:
+            self.url_bar.setText(url)
+            self.handle_input()
+    
+    def is_url(self, text):
+        """Enhanced check if the input is likely a URL."""
+        text = text.lower()
+        if text.startswith(('http://', 'https://')):
+            return True
+        # Look for common domains
+        common_domains = ['.com', '.org', '.net', '.edu', '.gov', '.io', '.co', '.uk', '.de', '.jp', '.ru']
+        if any(domain in text for domain in common_domains) and ' ' not in text:
+            return True
+        # Check for domain-like format with improved regex
+        if '.' in text and ' ' not in text and not text.endswith('.'):
+            return True
+        # Check for common sites that might be entered without a domain
+        common_sites = ['google', 'facebook', 'youtube', 'amazon', 'wikipedia', 'twitter', 'instagram']
+        if any(site == text for site in common_sites):
+            return True
+        return False
+    
+    def handle_input(self):
+        """Enhanced handler for input from URL bar."""
+        input_text = self.url_bar.text().strip()
+        
+        if not input_text:
+            return
+            
+        if self.is_url(input_text):
+            # It's likely a URL
+            if not input_text.startswith(('http://', 'https://')):
+                # For common sites without domain, add .com and https://
+                common_sites = ['google', 'facebook', 'youtube', 'amazon', 'wikipedia', 'twitter', 'instagram']
+                input_lower = input_text.lower()
+                if any(site == input_lower for site in common_sites):
+                    url = f"https://www.{input_text}.com"
+                else:
+                    url = "https://" + input_text
+            else:
+                url = input_text
+        else:
+            # It's likely a search query
+            encoded_query = urllib.parse.quote(input_text)
+            url = f"{self.default_search_engine}{encoded_query}"
+            
+        # Update URL bar with the processed URL
+        self.url_bar.setText(url)
+        self.current_url = url
+        
+        # Add URL to Servo thread's processing queue
+        self.servo_thread.add_url_to_queue(url, self.tab_id)
+        
+    def update_content(self, content_path):
+        """Update the tab's content with content received from Servo."""
+        if content_path.endswith(('.html', '.htm')):
+            # For HTML fallback content
+            try:
+                with open(content_path, 'r', encoding='utf-8', errors='replace') as f:
+                    html_content = f.read()
+                    self.web_view.setHtml(html_content, baseUrl=QUrl(self.current_url))
+            except Exception as e:
+                print(f"Error loading HTML content: {str(e)}")
+                self.web_view.setHtml(f"<div>Error loading content: {str(e)}</div>")
+                
+            # Try to extract the title
+            title = self._extract_title(html_content)
+            return title
+        elif content_path.endswith('.png'):
+            # For Servo rendered page (screenshot)
+            self.web_view.load(QUrl.fromLocalFile(content_path))
+            # Use the URL as title since we can't extract from image
+            parsed_url = urllib.parse.urlparse(self.current_url)
+            domain = parsed_url.netloc or "Unknown"
+            return domain
+        else:
+            # Handle other content types or error messages as plain text
+            try:
+                with open(content_path, 'r', encoding='utf-8', errors='replace') as f:
+                    text_content = f.read()
+                self.web_view.setHtml(f"<pre>{text_content}</pre>")
+            except:
+                self.web_view.setHtml(f"<div>Unsupported content: {content_path}</div>")
+            return "Error"
+        
+    def _extract_title(self, html):
+        """Extract page title from HTML."""
+        title_start = html.find("<title>")
+        title_end = html.find("</title>")
+        if title_start != -1 and title_end != -1:
+            return html[title_start + 7:title_end]
+        
+        # Try to extract from URL if title not found
+        if self.current_url:
+            parsed_url = urllib.parse.urlparse(self.current_url)
+            return parsed_url.netloc or "New Tab"
+        
+        return "New Tab"
+
+class CustomWebRenderer(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Servo Web Browser")
+        self.setGeometry(300, 100, 1200, 800)
+        
+        # Start Servo Thread
+        self.servo_thread = ServoThread(self)
+        self.servo_thread.content_ready.connect(self.update_tab_content)
+        self.servo_thread.start()
+        
+        # Tab counter for unique IDs
+        self.tab_counter = 0
+        self.tabs_dict = {}
+        
+        # Main Widget
+        self.main_widget = QWidget()
+        self.layout = QVBoxLayout()
+        
+        # Tab Widget
+        self.tabs = QTabWidget()
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self.close_tab)
+        
+        # Add + button for new tab
+        self.new_tab_button = QToolButton()
+        self.new_tab_button.setText("+")
+        self.new_tab_button.clicked.connect(lambda: self.add_new_tab(""))
+        self.tabs.setCornerWidget(self.new_tab_button, Qt.TopRightCorner)
+        
+        self.layout.addWidget(self.tabs)
+        
+        # Add initial tab - empty to start
+        self.add_new_tab("about:blank")
+        
+        # Set layout and central widget
+        self.main_widget.setLayout(self.layout)
+        self.setCentralWidget(self.main_widget)
+        
+        # Add menu actions
+        self.create_menu()
+    
+    def create_menu(self):
+        menu_bar = self.menuBar()
+        file_menu = menu_bar.addMenu("File")
+        
+        new_tab_action = QAction("New Tab", self)
+        new_tab_action.setShortcut("Ctrl+T")
+        new_tab_action.triggered.connect(lambda: self.add_new_tab(""))
+        file_menu.addAction(new_tab_action)
+        
+        reload_action = QAction("Reload Page", self)
+        reload_action.setShortcut("F5")
+        reload_action.triggered.connect(self.reload_current_page)
+        file_menu.addAction(reload_action)
+        
+        exit_action = QAction("Exit", self)
+        exit_action.setShortcut("Alt+F4")
+        exit_action.triggered.connect(self.close)
+        file_menu.addAction(exit_action)
+        
+        # Add search engines menu
+        search_menu = menu_bar.addMenu("Search Engines")
+        
+        duckduckgo_action = QAction("DuckDuckGo", self)
+        duckduckgo_action.triggered.connect(lambda: self.set_search_engine("https://duckduckgo.com/html/?q="))
+        search_menu.addAction(duckduckgo_action)
+        
+        google_action = QAction("Google", self)
+        google_action.triggered.connect(lambda: self.set_search_engine("https://www.google.com/search?q="))
+        search_menu.addAction(google_action)
+        
+        bing_action = QAction("Bing", self)
+        bing_action.triggered.connect(lambda: self.set_search_engine("https://www.bing.com/search?q="))
+        search_menu.addAction(bing_action)
+        
+        # Add debugging menu
+        debug_menu = menu_bar.addMenu("Debug")
+        
+        force_fallback_action = QAction("Force Fallback Rendering", self)
+        force_fallback_action.setCheckable(True)
+        force_fallback_action.triggered.connect(self.toggle_force_fallback)
+        debug_menu.addAction(force_fallback_action)
+        
+        # Add user agent selection menu
+        ua_menu = menu_bar.addMenu("User Agent")
+        
+        chrome_action = QAction("Chrome", self)
+        chrome_action.triggered.connect(lambda: self.set_user_agent(0))
+        ua_menu.addAction(chrome_action)
+        
+        safari_action = QAction("Safari", self)
+        safari_action.triggered.connect(lambda: self.set_user_agent(1))
+        ua_menu.addAction(safari_action)
+        
+        edge_action = QAction("Edge", self)
+        edge_action.triggered.connect(lambda: self.set_user_agent(2))
+        ua_menu.addAction(edge_action)
+        
+        firefox_action = QAction("Firefox", self)
+        firefox_action.triggered.connect(lambda: self.set_user_agent(3))
+        ua_menu.addAction(firefox_action)
+        
+        # Add help menu
+        help_menu = menu_bar.addMenu("Help")
+        
+        about_action = QAction("About", self)
+        about_action.triggered.connect(self.show_about)
+        help_menu.addAction(about_action)
+    
+    def toggle_force_fallback(self, checked):
+        """Toggle force fallback rendering mode."""
+        if hasattr(self, 'force_fallback'):
+            self.force_fallback = checked
+        else:
+            self.force_fallback = checked
+    
+    def show_about(self):
+        """Show about dialog."""
+        about_html = """
+        <div style='text-align:center; padding:20px;'>
+            <h2>Servo Web Browser</h2>
+            <p>A browser using Servo rendering engine</p>
+            <p>Version 1.0</p>
+            <p>Enhanced with better search engine compatibility</p>
+        </div>
+        """
+        # Get current tab and display about info
+        current_tab = self.tabs.currentWidget()
+        if current_tab:
+            current_tab.web_view.setHtml(about_html)
+            self.tabs.setTabText(self.tabs.currentIndex(), "About")
+    
+    def reload_current_page(self):
+        """Reload the current page."""
+        current_tab = self.tabs.currentWidget()
+        if current_tab and hasattr(current_tab, 'url_bar'):
+            url = current_tab.url_bar.text()
+            if url:
+                current_tab.handle_input()
+    
+    def set_search_engine(self, engine_url):
+        """Set the default search engine for all tabs."""
+        current_tab = self.tabs.currentWidget()
+        if current_tab:
+            current_tab.default_search_engine = engine_url
+            
+    def set_user_agent(self, ua_index):
+        """Set a specific user agent for all requests."""
+        self.servo_thread.set_user_agent(ua_index)
+    
+    def add_new_tab(self, url):
+        self.tab_counter += 1
+        tab_id = f"tab_{self.tab_counter}"
+        new_tab = BrowserTab(self.servo_thread, tab_id, url)
+        
+        tab_title = "New Tab"
+        self.tabs.addTab(new_tab, tab_title)
+        self.tabs.setCurrentWidget(new_tab)
+        self.tabs_dict[tab_id] = new_tab
+    
+    def update_tab_content(self, content_path, tab_id):
+        """Update tab content when received from Servo thread."""
+        if tab_id in self.tabs_dict:
+            tab = self.tabs_dict[tab_id]
+            title = tab.update_content(content_path)
+            
+            # Update tab title
+            idx = self.tabs.indexOf(tab)
+            if idx != -1:
+                tab_title = title[:15] + "..." if len(title) > 15 else title
+                self.tabs.setTabText(idx, tab_title)
+    
+    def close_tab(self, index):
+        if self.tabs.count() > 1:
+            # Get tab ID and remove from dictionary
+            tab = self.tabs.widget(index)
+            for tab_id, tab_obj in list(self.tabs_dict.items()):
+                if tab_obj == tab:
+                    del self.tabs_dict[tab_id]
+                    break
+            
+            self.tabs.removeTab(index)
+        else:
+            self.close()
+    
+    def closeEvent(self, event):
+        """Ensure Servo thread shuts down when the browser is closed."""
+        self.servo_thread.stop()
+        event.accept()
+
+# Run the application
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    window = CustomWebRenderer()
+    window.show()
+    sys.exit(app.exec_())
