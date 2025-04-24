@@ -1,0 +1,22 @@
+{
+  "servers": [
+    {
+      "name": "US Server",
+      "host": "us.vpnserver.example",
+      "port": 1194,
+      "protocol": "udp"
+    },
+    {
+      "name": "EU Server",
+      "host": "eu.vpnserver.example",
+      "port": 1194,
+      "protocol": "udp"
+    },
+    {
+      "name": "Asia Server",
+      "host": "asia.vpnserver.example",
+      "port": 1194,
+      "protocol": "udp"
+    }
+  ]
+}

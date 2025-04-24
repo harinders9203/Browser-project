@@ -1,0 +1,55 @@
+{
+  "shortcuts": [
+    {
+      "title": "Acko",
+      "url": "https://www.acko.com",
+      "icon": "A"
+    },
+    {
+      "title": "Play Games",
+      "url": "https://www.playgames.com",
+      "icon": "\ud83c\udfae"
+    },
+    {
+      "title": "Policybazaar",
+      "url": "https://www.policybazaar.com",
+      "icon": "P"
+    },
+    {
+      "title": "Home Loans",
+      "url": "https://www.homeloans.com",
+      "icon": "\ud83c\udfe0"
+    },
+    {
+      "title": "Booking.com",
+      "url": "https://www.booking.com",
+      "icon": "B"
+    },
+    {
+      "title": "Airbnb",
+      "url": "https://www.airbnb.com",
+      "icon": "A"
+    },
+    {
+      "title": "Agoda",
+      "url": "https://www.agoda.com",
+      "icon": "A"
+    },
+    {
+      "title": "World of Warships",
+      "url": "https://www.worldofwarships.com",
+      "icon": "W"
+    },
+    {
+      "title": "Trip.com",
+      "url": "https://www.trip.com",
+      "icon": "T"
+    },
+    {
+      "title": "Hotels Combined",
+      "url": "https://www.hotelscombined.com",
+      "icon": "H"
+    }
+  ],
+  "background_image": "file:///C:/Users/cc/Desktop/Browser Engine/images/img.jpg"
+}

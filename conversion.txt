@@ -1,4 +1,5 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QTextEdit, QTabWidget, QAction, QToolButton, QLineEdit
+# main.py
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QTabWidget, QAction, QToolButton, QLineEdit, QProgressBar, QHBoxLayout, QPushButton
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl
 from PyQt5.QtWebEngineWidgets import QWebEngineView
 import sys
@@ -11,16 +12,19 @@ import json
 import urllib.parse
 import random
 import tempfile
+from dark_mode import DarkModeManager
+from layout import BrowserLayout
 
 class ServoThread(QThread):
     content_ready = pyqtSignal(str, str)  # Signal to emit content path and tab_id
+    loading_started = pyqtSignal(str)  # Signal to indicate loading started
+    loading_finished = pyqtSignal(str)  # Signal to indicate loading finished
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, dark_mode_manager=None):
         super().__init__(parent)
         self.running = True
         self.queue = []
         self.port = self._find_free_port()
-        # More specific user agents that mimic mainstream browsers
         self.user_agents = [
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
             "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
@@ -29,11 +33,12 @@ class ServoThread(QThread):
         ]
         self.current_user_agent = self.user_agents[0]
         self.temp_dir = tempfile.mkdtemp(prefix="servo_")
-        self.render_timeout = 30  # Default timeout for standard pages
-        self.force_fallback = False  # Flag to force fallback rendering
+        self.render_timeout = 30
+        self.force_fallback = False
+        self.dark_mode = False
+        self.dark_mode_manager = dark_mode_manager
         
     def _find_free_port(self):
-        """Find a free port to use for communication with Servo."""
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.bind(('', 0))
         port = s.getsockname()[1]
@@ -41,186 +46,214 @@ class ServoThread(QThread):
         return port
         
     def add_url_to_queue(self, url, tab_id):
-        """Add URL to processing queue with special handling for problematic sites."""
-        # List of sites known to have issues with Servo rendering
+        print(f"Adding URL to queue: {url} (tab_id: {tab_id})")
         problematic_sites = ["google", "duckduckgo", "bing", "facebook", "twitter", "instagram", "youtube"]
-        
-        # Check if we should use fallback rendering
         if self.force_fallback or any(site in url.lower() for site in problematic_sites):
-            # Use fallback rendering directly for these sites
+            print("Using fallback rendering due to force_fallback or problematic site")
             self._fallback_rendering(url, tab_id)
         else:
-            # Regular Servo rendering for other sites
             self.queue.append((url, tab_id))
         
     def run(self):
-        # Set up startup info to hide console window on Windows
+        print("ServoThread started")
         startupinfo = None
         creationflags = 0
-        if os.name == "nt":  # Windows
+        if os.name == "nt":
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             creationflags = subprocess.CREATE_NO_WINDOW
 
-        # Start IPC server socket
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind(('localhost', self.port))
         server.listen(5)
-        server.settimeout(0.5)  # Non-blocking with a timeout
+        server.settimeout(0.5)
         
         while self.running:
-            # Process any URLs in the queue
             if self.queue:
                 url, tab_id = self.queue.pop(0)
-                
-                # Adjust timeout based on the site complexity
+                print(f"Processing URL from queue: {url} (tab_id: {tab_id})")
+                print(f"Emitting loading_started signal for tab_id: {tab_id}")
+                self.loading_started.emit(tab_id)  # Emit loading started signal
                 if any(site in url.lower() for site in ["google", "duckduckgo", "bing", "facebook"]):
-                    self.render_timeout = 60  # Longer timeout for complex sites
+                    self.render_timeout = 60
                 else:
-                    self.render_timeout = 30  # Default for other sites
-                
-                # Create a unique output file for each request
+                    self.render_timeout = 30
                 output_file = os.path.join(self.temp_dir, f"{tab_id}_{int(time.time())}.png")
-                
-                # Special handling for search engines
                 if "google" in url.lower() or "duckduckgo" in url.lower() or "bing" in url.lower():
-                    # For search engines, try with specific flags and settings
                     self.current_user_agent = random.choice(self.user_agents)
-                
-                # Check if Servo executable exists
                 servo_path = r"C:\\Users\\cc\\Desktop\\servo\\target\\release\\servo.exe"
                 if not os.path.exists(servo_path):
                     print(f"Error: Servo executable not found at {servo_path}")
                     self._fallback_rendering(url, tab_id)
                     continue
-                
-                # Add specific flags for better compatibility with search engines
                 servo_cmd = [
-                    servo_path,
-                    url,
-                    f"--user-agent={self.current_user_agent}",
-                    "--headless",
-                    f"--output={output_file}",
-                    "--gpu=disabled",  # Disable GPU for better compatibility
-                    "--no-webrender-stats",
-                    "--certificate-path=mozilla",  # Use Mozilla's trusted certificates
-                    "--devtools",  # Enable dev tools for better debugging
-                    f"--ipc-port={self.port}",
-                    "--allow-third-party-cookies",  # Enable cookies for better site compatibility
-                    "--no-sandbox",  # More permissive execution mode
-                    "--js-backtrace",  # Enable JavaScript backtraces for debugging
+                    servo_path, url, f"--user-agent={self.current_user_agent}", "--headless",
+                    f"--output={output_file}", "--gpu=disabled", "--no-webrender-stats",
+                    "--certificate-path=mozilla", "--devtools", f"--ipc-port={self.port}",
+                    "--allow-third-party-cookies", "--no-sandbox", "--js-backtrace"
                 ]
-                
-                # Special flags for search engines
                 if "google" in url.lower() or "duckduckgo" in url.lower() or "bing" in url.lower():
-                    servo_cmd.extend([
-                        "--disable-http-cache=false",  # Enable HTTP cache for faster loading
-                        "--max-wait-for-load=30000",   # Longer wait time for search pages
-                    ])
-                
+                    servo_cmd.extend(["--disable-http-cache=false", "--max-wait-for-load=30000"])
                 try:
-                    # Run Servo command to render the page
-                    servo_process = subprocess.Popen(
-                        servo_cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        startupinfo=startupinfo,
-                        creationflags=creationflags
-                    )
-                    
-                    # Wait for process to complete with an increased timeout
+                    servo_process = subprocess.Popen(servo_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                                    startupinfo=startupinfo, creationflags=creationflags)
                     try:
                         stdout, stderr = servo_process.communicate(timeout=self.render_timeout)
-                        
-                        # Check if output file was created and is valid
                         if os.path.exists(output_file) and os.path.getsize(output_file) > 5000:
-                            # Send path to rendered content
+                            print(f"Servo rendering successful, emitting content: {output_file}")
                             self.content_ready.emit(output_file, tab_id)
                         else:
-                            # If Servo failed to render or file is too small, fallback to requests method
-                            print(f"Output file not created or too small for {url}, falling back to requests method")
+                            print(f"Output file not created or too small for {url}, falling back")
                             self._fallback_rendering(url, tab_id)
-                            
                     except subprocess.TimeoutExpired:
                         servo_process.kill()
-                        print(f"Timeout rendering {url}, falling back to requests method")
+                        print(f"Timeout rendering {url}, falling back")
                         self._fallback_rendering(url, tab_id)
-                        
                 except Exception as e:
                     print(f"Error rendering {url}: {str(e)}")
                     self._fallback_rendering(url, tab_id)
+                finally:
+                    print(f"Emitting loading_finished signal for tab_id: {tab_id}")
+                    self.loading_finished.emit(tab_id)  # Emit loading finished signal
 
-            # Check for any data from Servo via IPC
             try:
                 client, addr = server.accept()
                 data = client.recv(4096)
                 if data:
-                    # Process any IPC messages from Servo
                     try:
                         message = json.loads(data.decode('utf-8'))
-                        # Handle various message types from Servo
                         if 'event' in message:
                             if message['event'] == 'page_loaded':
-                                pass  # Handle page loaded event
+                                print("Servo event: page_loaded")
                             elif message['event'] == 'error':
-                                pass  # Handle error events
+                                print("Servo event: error")
                     except json.JSONDecodeError:
                         pass
                 client.close()
             except socket.timeout:
-                # This is expected due to the timeout we set
                 pass
 
-            # Small sleep to prevent high CPU usage
             time.sleep(0.1)
 
-        # Clean up when thread stops
         server.close()
         try:
             import shutil
-            shutil.rmtree(self.temp_dir)  # Clean up temp directory
+            shutil.rmtree(self.temp_dir)
         except:
             pass
+        print("ServoThread stopped")
 
     def _fallback_rendering(self, url, tab_id):
-        """Enhanced fallback to basic HTML rendering using requests with additional headers."""
+        print(f"Starting fallback rendering for {url} (tab_id: {tab_id})")
+        print(f"Emitting loading_started signal for tab_id: {tab_id}")
+        self.loading_started.emit(tab_id)  # Emit loading started signal
         try:
-            # Rotate user agent for better success rate
             self.current_user_agent = random.choice(self.user_agents)
+            if "google.com" in url.lower():
+                self.current_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
             headers = {
                 'User-Agent': self.current_user_agent,
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                'Accept-Language': 'en-US,en;q=0.9',
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1',
-                'Cache-Control': 'max-age=0',
                 'Sec-Fetch-Dest': 'document',
                 'Sec-Fetch-Mode': 'navigate',
                 'Sec-Fetch-Site': 'none',
                 'Sec-Fetch-User': '?1',
-                'DNT': '1',  # Do Not Track
+                'Cache-Control': 'max-age=0',
             }
 
-            # Use a session to maintain cookies
             session = requests.Session()
             
-            # Special handling for DuckDuckGo HTML search
-            if "duckduckgo.com/html" in url.lower():
-                # Extract search query from URL
+            if "google.com" in url.lower():
+                headers['Referer'] = 'https://www.google.com/'
+                headers['Origin'] = 'https://www.google.com'
+                if url.startswith('http://'):
+                    url = 'https://' + url[7:]
+                if "www." not in url and "google.com" in url:
+                    url = url.replace("google.com", "www.google.com")
+                print("Fetching Google page with fallback")
+                response = session.get(url, headers=headers, timeout=10)
+                html_content = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>Google</title>
+                    <style>
+                        body {{ 
+                            font-family: Arial, sans-serif; 
+                            text-align: center; 
+                            padding: 2%; 
+                            font-size: 1.2em; 
+                            background-color: { '#212121' if self.dark_mode else '#f8f9fa' }; 
+                            color: { '#e0e0e0' if self.dark_mode else '#333' }; 
+                        }}
+                        .google-notice {{ 
+                            background-color: { '#2d2d2d' if self.dark_mode else '#f8f9fa' }; 
+                            padding: 2%; 
+                            border-radius: 8px; 
+                            margin: 2% auto; 
+                            max-width: 50%; 
+                        }}
+                        .search-box {{ margin: 2% auto; width: 80%; max-width: 50%; }}
+                        input[type="text"] {{ 
+                            width: 70%; 
+                            padding: 1%; 
+                            font-size: 1.2em; 
+                            border: 1px solid { '#424242' if self.dark_mode else '#dfe1e5' }; 
+                            border-radius: 24px; 
+                            background-color: { '#2d2d2d' if self.dark_mode else '#fff' }; 
+                            color: { '#e0e0e0' if self.dark_mode else '#333' }; 
+                        }}
+                        button {{ 
+                            padding: 1% 2%; 
+                            margin-left: 1%; 
+                            background-color: { '#2d2d2d' if self.dark_mode else '#f8f9fa' }; 
+                            border: 1px solid { '#424242' if self.dark_mode else '#f8f9fa' }; 
+                            border-radius: 4px; 
+                            cursor: pointer; 
+                            font-size: 1em; 
+                            color: { '#e0e0e0' if self.dark_mode else '#333' }; 
+                        }}
+                        button:hover {{ background-color: { '#3f3f3f' if self.dark_mode else '#e0e0e0' }; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="google-notice">
+                        <h2>Google Search</h2>
+                        <p>Google's homepage isn't displaying correctly due to encoding issues.</p>
+                        <p>You can still search using the form below:</p>
+                    </div>
+                    <div class="search-box">
+                        <form action="https://www.google.com/search" method="GET">
+                            <input type="text" name="q" placeholder="Search Google...">
+                            <button type="submit">Search</button>
+                        </form>
+                    </div>
+                </body>
+                </html>
+                """
+                temp_html = os.path.join(self.temp_dir, f"{tab_id}_google_fallback.html")
+                with open(temp_html, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
+                print(f"Emitting Google fallback content: {temp_html}")
+                self.content_ready.emit(temp_html, tab_id)
+                self.loading_finished.emit(tab_id)
+                return
+                
+            elif "duckduckgo.com/html" in url.lower():
+                print("Fetching DuckDuckGo page with fallback")
                 parsed_url = urllib.parse.urlparse(url)
                 query_params = urllib.parse.parse_qs(parsed_url.query)
-                
                 if 'q' in query_params:
                     search_query = query_params['q'][0]
-                    
-                    # DuckDuckGo HTML version works better with POST
                     duckduckgo_url = "https://duckduckgo.com/html/"
                     post_data = {'q': search_query, 'b': ''}
-                    
-                    # Use specific headers known to work with DuckDuckGo
                     special_headers = {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
@@ -228,148 +261,87 @@ class ServoThread(QThread):
                         'Origin': 'https://duckduckgo.com',
                         'Referer': 'https://duckduckgo.com/',
                     }
-                    
-                    # Make the POST request
                     response = session.post(duckduckgo_url, data=post_data, headers=special_headers, timeout=15)
                 else:
-                    # If no query parameter, just load the main page
                     response = session.get(url, headers=headers, timeout=15)
             else:
-                # Try to mimic a real browser by first visiting the domain home page
-                parsed_url = urllib.parse.urlparse(url)
-                domain_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
-                if domain_url != url:
-                    try:
-                        home_response = session.get(domain_url, headers=headers, timeout=15)
-                        # Small delay to mimic human behavior
-                        time.sleep(0.5)
-                    except:
-                        pass  # Ignore errors on the pre-request
-
-                # Now make the actual request
+                print(f"Fetching URL with fallback: {url}")
                 response = session.get(url, headers=headers, timeout=15)
             
-            # Check content type to avoid binary data display
+            print(f"Response status code: {response.status_code}")
             content_type = response.headers.get('Content-Type', '').lower()
             if ('text/html' not in content_type and 
                 'application/json' not in content_type and 
                 'text/plain' not in content_type and
                 'application/javascript' not in content_type and
                 'text/xml' not in content_type):
-                # It's likely binary data, create a friendly message instead
                 html_content = f"""
-                <div style='padding:20px; font-family:Arial;'>
-                    <h2>Content type not supported for direct display</h2>
+                <div style='padding: 2%; font-family: Arial; font-size: 1.2em; background-color: { "#2d2d2d" if self.dark_mode else "#fff" }; color: { "#e0e0e0" if self.dark_mode else "#333" };'>
+                    <h2>Content type not supported</h2>
                     <p>The page at <a href="{url}">{url}</a> returned content of type: {content_type}</p>
                     <p>Try visiting the site in another browser.</p>
                 </div>
                 """
             else:
-                # Get the actual encoding from headers or detect it
-                encoding = response.encoding
-                
-                # Create HTML content with redirect info if needed
-                if response.history:
-                    redirect_info = f"<div style='background-color:#FFFFCC; padding:10px; margin:5px;'>"
-                    redirect_info += f"<p>Redirected from {url} to {response.url}</p></div>"
-                    html_content = redirect_info + response.text
-                else:
+                try:
+                    html_content = response.content.decode('utf-8', errors='replace')
+                except Exception as e:
+                    print(f"Error decoding content: {str(e)}")
                     html_content = response.text
             
-            # Fix relative links for search engines, particularly for DuckDuckGo
-            if "duckduckgo.com/html" in url.lower():
-                # Fix for form action URLs
-                html_content = html_content.replace('action="/', 'action="https://duckduckgo.com/')
-                html_content = html_content.replace('action=\'/', 'action=\'https://duckduckgo.com/')
-                
-                # Fix for relative image links
-                html_content = html_content.replace('src="/', 'src="https://duckduckgo.com/')
-                html_content = html_content.replace('src=\'/', 'src=\'https://duckduckgo.com/')
-                
-                # Fix for CSS and JavaScript
-                html_content = html_content.replace('href="/', 'href="https://duckduckgo.com/')
-                html_content = html_content.replace('href=\'/', 'href=\'https://duckduckgo.com/')
-                
-                # Enhanced style fixes for DuckDuckGo
-                style_fixes = """
-                <style>
-                    .result {
-                        padding: 12px;
-                        margin-bottom: 10px;
-                        border-bottom: 1px solid #eee;
-                    }
-                    .result__title {
-                        font-size: 18px;
-                        margin-bottom: 5px;
-                    }
-                    .result__snippet {
-                        color: #444;
-                        margin-bottom: 5px;
-                    }
-                    .result__url {
-                        color: #006621;
-                        font-size: 13px;
-                    }
-                    .result--ad {
-                        background-color: #f8f8f8;
-                    }
-                    .search-form {
-                        padding: 15px;
-                        background-color: #f5f5f5;
-                        margin-bottom: 20px;
-                    }
-                    #search_form_input {
-                        padding: 8px;
-                        width: 70%;
-                        border: 1px solid #ccc;
-                    }
-                    #search_button {
-                        padding: 8px 15px;
-                        background-color: #60a5da;
-                        color: white;
-                        border: none;
-                        cursor: pointer;
-                    }
-                </style>
-                """
-                
-                # Add the style fixes to the <head> section
-                head_end = html_content.find("</head>")
-                if head_end > 0:
-                    html_content = html_content[:head_end] + style_fixes + html_content[head_end:]
-                else:
-                    # If no </head>, add it at the beginning of the document
-                    html_content = f"<style>{style_fixes}</style>" + html_content
-            
-            # Add debugging info
+            base_url = response.url
+            base_domain = urllib.parse.urlparse(base_url).netloc
+            base_tag = f'<base href="{base_url}">'
+            dark_mode_css = self.dark_mode_manager.get_content_css() if self.dark_mode_manager else ""
+            custom_css = f"""
+            <style>
+                html, body {{ 
+                    font-family: Arial, sans-serif; 
+                    line-height: 1.6; 
+                    color: { "#e0e0e0" if self.dark_mode else "#333" }; 
+                    margin: 0; 
+                    padding: 2%; 
+                    font-size: 1.2em; 
+                    background-color: { "#212121" if self.dark_mode else "#fff" }; 
+                }}
+                a {{ color: { "#ff9500" if self.dark_mode else "#1a0dab" }; text-decoration: none; }}
+                a:hover {{ text-decoration: underline; }}
+                img {{ max-width: 100%; height: auto; border-radius: 8px; }}
+                .debug-info {{ 
+                    background-color: { "#2d2d2d" if self.dark_mode else "#f5f5f5" }; 
+                    padding: 1%; 
+                    margin-bottom: 1%; 
+                    border-radius: 4px; 
+                    font-size: 0.9em; 
+                    opacity: 0.8; 
+                }}
+                .debug-info summary {{ cursor: pointer; }}
+                .content {{ word-break: break-word; }}
+                .content h3 {{ margin: 0.5em 0; font-size: 1.3em; }}
+                .content p {{ margin: 0.3em 0; color: { "#bdc1c6" if self.dark_mode else "#4d5156" }; }}
+                {dark_mode_css}
+            </style>
+            """
             debug_info = f"""
-            <div style='background-color:#E8F5E9; padding:10px; margin:5px; font-family:monospace; font-size:12px;'>
+            <details class="debug-info">
+                <summary>Debug Info</summary>
                 <p><strong>URL:</strong> {response.url}</p>
                 <p><strong>Status:</strong> {response.status_code}</p>
                 <p><strong>Content-Type:</strong> {response.headers.get('Content-Type', 'Unknown')}</p>
-                <p><strong>Encoding:</strong> {encoding}</p>
+                <p><strong>Encoding:</strong> {response.encoding}</p>
                 <p><strong>User-Agent:</strong> {self.current_user_agent}</p>
-                <p><strong>Note:</strong> Using fallback HTML renderer (Servo rendering failed or was skipped)</p>
-            </div>
+                <p><strong>Note:</strong> Using fallback HTML renderer</p>
+            </details>
             """
-
-            # Fix for search engines - add base URL to make relative links work
-            base_tag = ""
-            if "google" in url.lower() or "duckduckgo" in url.lower() or "bing" in url.lower():
-                base_tag = f'<base href="{response.url}">'
-
-            # Prepare complete HTML with proper encoding declaration
             complete_html = f"""
             <!DOCTYPE html>
             <html>
             <head>
                 <meta charset="utf-8">
-                <title>{response.url}</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <title>{base_domain}</title>
                 {base_tag}
-                <style>
-                    body {{ font-family: Arial, sans-serif; }}
-                    .debug-info {{ background-color: #E8F5E9; padding: 10px; margin: 5px; font-size: 12px; }}
-                </style>
+                {custom_css}
             </head>
             <body>
                 {debug_info}
@@ -379,13 +351,10 @@ class ServoThread(QThread):
             </body>
             </html>
             """
-
-            # Create a temporary HTML file
             temp_html = os.path.join(self.temp_dir, f"{tab_id}_fallback.html")
             with open(temp_html, 'w', encoding='utf-8', errors='replace') as f:
                 f.write(complete_html)
-
-            # Emit the HTML file path
+            print(f"Emitting fallback content: {temp_html}")
             self.content_ready.emit(temp_html, tab_id)
             
         except Exception as e:
@@ -396,94 +365,185 @@ class ServoThread(QThread):
             <head>
                 <meta charset="utf-8">
                 <title>Error</title>
+                <style>
+                    body {{ 
+                        font-family: Arial, sans-serif; 
+                        padding: 2%; 
+                        line-height: 1.6; 
+                        font-size: 1.2em; 
+                        background-color: { "#212121" if self.dark_mode else "#fff" }; 
+                        color: { "#e0e0e0" if self.dark_mode else "#333" }; 
+                    }}
+                    .error-container {{ 
+                        background-color: { "#2d2d2d" if self.dark_mode else "#fff3f3" }; 
+                        border-left: 4px solid { "#ff6d6d" if self.dark_mode else "#e74c3c" }; 
+                        padding: 2%; 
+                        border-radius: 4px; 
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+                    }}
+                    h2 {{ margin-top: 0; color: { "#ff6d6d" if self.dark_mode else "#e74c3c" }; }}
+                </style>
             </head>
             <body>
-                <div style='background-color:#FFEBEE; padding:20px; margin:10px;'>
-                    <h2>Error loading {url}</h2>
-                    <p>{str(e)}</p>
+                <div class="error-container">
+                    <h2>Error loading page</h2>
+                    <p><strong>URL:</strong> {url}</p>
+                    <p><strong>Error:</strong> {str(e)}</p>
                     <p>Both Servo rendering and fallback method failed.</p>
+                    <p>Try reloading the page or checking your network connection.</p>
                 </div>
             </body>
             </html>
             """
-            # Create a temporary HTML file for the error
             temp_error = os.path.join(self.temp_dir, f"{tab_id}_error.html")
             with open(temp_error, 'w', encoding='utf-8') as f:
                 f.write(error_msg)
-
+            print(f"Emitting error content: {temp_error}")
             self.content_ready.emit(temp_error, tab_id)
+        finally:
+            print(f"Emitting loading_finished signal for tab_id: {tab_id}")
+            self.loading_finished.emit(tab_id)
 
     def set_user_agent(self, ua_index):
-        """Set the current user agent."""
         if 0 <= ua_index < len(self.user_agents):
             self.current_user_agent = self.user_agents[ua_index]
 
     def set_force_fallback(self, force):
-        """Set the force fallback flag."""
         self.force_fallback = force
 
+    def set_dark_mode(self, enabled):
+        self.dark_mode = enabled
+
     def stop(self):
-        """Stop the thread safely."""
         self.running = False
-        self.wait()
+        self.terminate()  # Forcefully terminate the thread if it doesn't stop
+        self.wait(2000)  # Wait up to 2 seconds for the thread to stop
 
 class BrowserTab(QWidget):
-    def __init__(self, servo_thread, tab_id, url=None):
+    def __init__(self, servo_thread, tab_id, url=None, dark_mode_manager=None):
         super().__init__()
         self.servo_thread = servo_thread
         self.tab_id = tab_id
+        self.dark_mode_manager = dark_mode_manager
         self.layout = QVBoxLayout()
         self.default_search_engine = "https://duckduckgo.com/html/?q="
 
-        # URL/Search Input
+        # Create a horizontal layout for the URL bar and reload button
+        self.url_layout = QHBoxLayout()
+
+        # URL bar
         self.url_bar = QLineEdit()
         self.url_bar.setPlaceholderText("Enter URL or search query and press Enter")
         self.url_bar.returnPressed.connect(self.handle_input)
+        self.url_bar.setMinimumHeight(int(QApplication.primaryScreen().availableGeometry().height() * 0.05))
+        self.url_layout.addWidget(self.url_bar)
 
-        # Use QWebEngineView instead of QTextEdit for better rendering
+        # Reload button
+        self.reload_button = QPushButton("↻")
+        self.reload_button.setFixedSize(40, 40)
+        self.reload_button.clicked.connect(self.handle_input)  # Reuse handle_input to reload the current URL
+        self.reload_button.setObjectName("reloadButton")
+        self.url_layout.addWidget(self.reload_button)
+
+        # Now that all widgets are created, update the styles
+        self.update_url_bar_style()
+
+        # Add the URL layout to the main layout
+        self.layout.addLayout(self.url_layout)
+
+        # Web view
         self.web_view = QWebEngineView()
+        self.web_view.loadFinished.connect(self.apply_dark_mode_to_content)
+        self.layout.addWidget(self.web_view, 1)
 
-        # Add Widgets to Layout
-        self.layout.addWidget(self.url_bar)
-        self.layout.addWidget(self.web_view)
+        self.layout.setSpacing(10)
         self.setLayout(self.layout)
 
-        # Track the current URL for title purposes
         self.current_url = ""
-
         if url:
             self.url_bar.setText(url)
             self.handle_input()
 
+    def update_url_bar_style(self, dark_mode=False):
+        if dark_mode:
+            self.url_bar.setStyleSheet("""
+                padding: 8px; 
+                font-size: 16px; 
+                border: 1px solid #424242; 
+                border-radius: 24px; 
+                background-color: #2d2d2d; 
+                color: #e0e0e0;
+            """)
+            self.reload_button.setStyleSheet("""
+                QPushButton#reloadButton {
+                    background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border: 1px solid #424242;
+                    border-radius: 20px;
+                    font-size: 18px;
+                }
+                QPushButton#reloadButton:hover {
+                    background-color: #3f3f3f;
+                }
+            """)
+        else:
+            self.url_bar.setStyleSheet("""
+                padding: 8px; 
+                font-size: 16px; 
+                border: 1px solid #d0d0d0; 
+                border-radius: 24px; 
+                background-color: #fff; 
+                color: #333;
+            """)
+            self.reload_button.setStyleSheet("""
+                QPushButton#reloadButton {
+                    background-color: #f5f5f5;
+                    color: #333333;
+                    border: 1px solid #d0d0d0;
+                    border-radius: 20px;
+                    font-size: 18px;
+                }
+                QPushButton#reloadButton:hover {
+                    background-color: #e0e0e0;
+                }
+            """)
+
+    def apply_dark_mode_to_content(self, dark_mode=None):
+        if dark_mode is None:
+            dark_mode = self.dark_mode_manager.is_dark_mode() if self.dark_mode_manager else False
+        css = self.dark_mode_manager.get_content_css() if self.dark_mode_manager else ""
+        script = f"""
+            (function() {{
+                var style = document.createElement('style');
+                style.type = 'text/css';
+                style.innerHTML = `{css}`;
+                document.head.appendChild(style);
+                console.log('Dark mode CSS applied:', `{css}`);
+            }})();
+        """
+        if css:
+            self.web_view.page().runJavaScript(script)
+
     def is_url(self, text):
-        """Enhanced check if the input is likely a URL."""
         text = text.lower()
         if text.startswith(('http://', 'https://')):
             return True
-        # Look for common domains
         common_domains = ['.com', '.org', '.net', '.edu', '.gov', '.io', '.co', '.uk', '.de', '.jp', '.ru']
         if any(domain in text for domain in common_domains) and ' ' not in text:
             return True
-        # Check for domain-like format with improved regex
         if '.' in text and ' ' not in text and not text.endswith('.'):
             return True
-        # Check for common sites that might be entered without a domain
         common_sites = ['google', 'facebook', 'youtube', 'amazon', 'wikipedia', 'twitter', 'instagram']
         if any(site == text for site in common_sites):
             return True
         return False
 
     def handle_input(self):
-        """Enhanced handler for input from URL bar."""
         input_text = self.url_bar.text().strip()
-
         if not input_text:
             return
-
         if self.is_url(input_text):
-            # It's likely a URL
             if not input_text.startswith(('http://', 'https://')):
-                # For common sites without domain, add .com and https://
                 common_sites = ['google', 'facebook', 'youtube', 'amazon', 'wikipedia', 'twitter', 'instagram']
                 input_lower = input_text.lower()
                 if any(site == input_lower for site in common_sites):
@@ -493,38 +553,26 @@ class BrowserTab(QWidget):
             else:
                 url = input_text
         else:
-            # It's likely a search query
             encoded_query = urllib.parse.quote(input_text)
-            # Use DuckDuckGo's HTML search for better compatibility
             url = f"{self.default_search_engine}{encoded_query}"
 
-        # Update URL bar with the processed URL
         self.url_bar.setText(url)
         self.current_url = url
 
-        # For DuckDuckGo, always use fallback for reliable results
         if "duckduckgo.com" in url.lower():
-            # Force fallback temporarily for this request
             old_fallback = self.servo_thread.force_fallback
             self.servo_thread.set_force_fallback(True)
-            # Add URL to processing queue
             self.servo_thread.add_url_to_queue(url, self.tab_id)
-            # Restore original fallback setting
             self.servo_thread.set_force_fallback(old_fallback)
         else:
-            # Add URL to Servo thread's processing queue
             self.servo_thread.add_url_to_queue(url, self.tab_id)
 
     def update_content(self, content_path):
-        """Update the tab's content with content received from Servo."""
+        print(f"Loading content into web view: {content_path}")
         if content_path.endswith(('.html', '.htm')):
-            # For HTML fallback content
             try:
-                # Use QUrl.fromLocalFile instead of directly loading HTML for better encoding support
                 file_url = QUrl.fromLocalFile(content_path)
                 self.web_view.load(file_url)
-
-                # Try to extract the title
                 with open(content_path, 'r', encoding='utf-8', errors='replace') as f:
                     html_content = f.read()
                     title = self._extract_title(html_content)
@@ -534,9 +582,7 @@ class BrowserTab(QWidget):
                 self.web_view.setHtml(f"<div>Error loading content: {str(e)}</div>")
                 
         elif content_path.endswith('.png'):
-            # For Servo rendered page (screenshot)
             try:
-                # Create HTML wrapper for the PNG image
                 html_content = f"""
                 <!DOCTYPE html>
                 <html>
@@ -544,12 +590,22 @@ class BrowserTab(QWidget):
                     <meta charset="utf-8">
                     <title>{self.current_url}</title>
                     <style>
-                        body {{ margin: 0; padding: 0; }}
-                        .info-bar {{ background-color: #E8F5E9; padding: 5px; font-size: 12px; }}
+                        body {{ 
+                            margin: 0; 
+                            padding: 0; 
+                            background-color: { "#212121" if self.servo_thread.dark_mode else "#fff" }; 
+                        }}
+                        .info-bar {{ 
+                            background-color: { "#2d2d2d" if self.servo_thread.dark_mode else "#E8F5E9" }; 
+                            padding: 0.5%; 
+                            font-size: 0.9em; 
+                            color: { "#e0e0e0" if self.servo_thread.dark_mode else "#333" }; 
+                        }}
+                        img {{ width: 100%; height: auto; border-radius: 8px; }}
                     </style>
                 </head>
                 <body>
-                    <img src="file:///{content_path.replace('\\', '/')}" style="width:100%;" />
+                    <img src="file:///{content_path.replace('\\', '/')}" />
                     <div class="info-bar">
                         <p>Viewing: {self.current_url}</p>
                     </div>
@@ -560,13 +616,10 @@ class BrowserTab(QWidget):
             except Exception as e:
                 print(f"Error displaying PNG: {str(e)}")
                 self.web_view.load(QUrl.fromLocalFile(content_path))
-                
-            # Use the URL as title since we can't extract from image
             parsed_url = urllib.parse.urlparse(self.current_url)
             domain = parsed_url.netloc or "Unknown"
             return domain
         else:
-            # Handle other content types or error messages as plain text
             try:
                 file_url = QUrl.fromLocalFile(content_path)
                 self.web_view.load(file_url)
@@ -575,151 +628,135 @@ class BrowserTab(QWidget):
             return "Error"
 
     def _extract_title(self, html):
-        """Extract page title from HTML."""
         title_start = html.find("<title>")
         title_end = html.find("</title>")
         if title_start != -1 and title_end != -1:
             return html[title_start + 7:title_end]
-
-        # Try to extract from URL if title not found
         if self.current_url:
             parsed_url = urllib.parse.urlparse(self.current_url)
             return parsed_url.netloc or "New Tab"
-
         return "New Tab"
 
 class CustomWebRenderer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Servo Web Browser")
-        self.setGeometry(300, 100, 1200, 800)
-
-        # Start Servo Thread
-        self.servo_thread = ServoThread(self)
-        self.servo_thread.content_ready.connect(self.update_tab_content)
-        self.servo_thread.start()
         
-        # Tab counter for unique IDs
+        # Detect screen size and set window to 85% of screen dimensions
+        screen = QApplication.primaryScreen()
+        screen_size = screen.availableGeometry()
+        width = int(screen_size.width() * 1.00)
+        height = int(screen_size.height() * 1.00)
+        self.resize(width, height)
+        self.move(int((screen_size.width() - width) / 2), int((screen_size.height() - height) / 2))
+        self.setMinimumSize(int(screen_size.width() * 0.5), int(screen_size.height() * 0.5))
+
         self.tab_counter = 0
         self.tabs_dict = {}
         
-        # Main Widget
-        self.main_widget = QWidget()
-        self.layout = QVBoxLayout()
-        
-        # Tab Widget
-        self.tabs = QTabWidget()
-        self.tabs.setTabsClosable(True)
-        self.tabs.tabCloseRequested.connect(self.close_tab)
-        
-        # Add + button for new tab
+        # Initialize ServoThread
+        self.servo_thread = ServoThread(self)
+        self.servo_thread.content_ready.connect(self.update_tab_content)
+        self.servo_thread.loading_started.connect(self.show_loading)
+        self.servo_thread.loading_finished.connect(self.hide_loading)
+
+        # Initialize DarkModeManager
         self.new_tab_button = QToolButton()
-        self.new_tab_button.setText("+")
-        self.new_tab_button.clicked.connect(lambda: self.add_new_tab(""))
-        self.tabs.setCornerWidget(self.new_tab_button, Qt.TopRightCorner)
+        self.dark_mode_manager = DarkModeManager(self, self.servo_thread, self.tabs_dict, None, self.new_tab_button)
+        self.servo_thread.dark_mode_manager = self.dark_mode_manager
 
-        self.layout.addWidget(self.tabs)
+        # Initialize BrowserLayout
+        self.browser_layout = BrowserLayout(self, self.dark_mode_manager, self.servo_thread, self.tabs_dict, self.new_tab_button)
+        self.setCentralWidget(self.browser_layout)
 
-        # Add initial tab - DuckDuckGo as homepage
-        self.add_new_tab("https://duckduckgo.com/html")
+        # Update the tabs reference in DarkModeManager
+        self.dark_mode_manager.tabs = self.browser_layout.get_tabs()
+        
+        # Start the ServoThread
+        self.servo_thread.start()
 
-        # Set layout and central widget
-        self.main_widget.setLayout(self.layout)
-        self.setCentralWidget(self.main_widget)
-
-        # Force fallback for problematic sites by default
+        # Set DuckDuckGo as the homepage
+        self.add_new_tab("https://duckduckgo.com")
+        
         self.force_fallback = True
         self.servo_thread.set_force_fallback(self.force_fallback)
 
-        # Add menu actions
         self.create_menu()
     
     def create_menu(self):
         menu_bar = self.menuBar()
         file_menu = menu_bar.addMenu("File")
-
         new_tab_action = QAction("New Tab", self)
         new_tab_action.setShortcut("Ctrl+T")
         new_tab_action.triggered.connect(lambda: self.add_new_tab(""))
         file_menu.addAction(new_tab_action)
-
         reload_action = QAction("Reload Page", self)
         reload_action.setShortcut("F5")
         reload_action.triggered.connect(self.reload_current_page)
         file_menu.addAction(reload_action)
-
         exit_action = QAction("Exit", self)
         exit_action.setShortcut("Alt+F4")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
-        # Add search engines menu
         search_menu = menu_bar.addMenu("Search Engines")
-        
         duckduckgo_action = QAction("DuckDuckGo", self)
         duckduckgo_action.triggered.connect(lambda: self.set_search_engine("https://duckduckgo.com/html/?q="))
         search_menu.addAction(duckduckgo_action)
-        
         google_action = QAction("Google", self)
         google_action.triggered.connect(lambda: self.set_search_engine("https://www.google.com/search?q="))
         search_menu.addAction(google_action)
-        
         bing_action = QAction("Bing", self)
         bing_action.triggered.connect(lambda: self.set_search_engine("https://www.bing.com/search?q="))
         search_menu.addAction(bing_action)
         
-        # Add rendering options menu
         render_menu = menu_bar.addMenu("Rendering")
-        
         force_fallback_action = QAction("Force Fallback Rendering", self)
         force_fallback_action.setCheckable(True)
         force_fallback_action.setChecked(self.force_fallback)
         force_fallback_action.triggered.connect(self.toggle_force_fallback)
         render_menu.addAction(force_fallback_action)
         
-        # Add user agent selection menu
         ua_menu = menu_bar.addMenu("User Agent")
-        
         chrome_action = QAction("Chrome", self)
         chrome_action.triggered.connect(lambda: self.set_user_agent(0))
         ua_menu.addAction(chrome_action)
-        
         safari_action = QAction("Safari", self)
         safari_action.triggered.connect(lambda: self.set_user_agent(1))
         ua_menu.addAction(safari_action)
-        
         edge_action = QAction("Edge", self)
         edge_action.triggered.connect(lambda: self.set_user_agent(2))
         ua_menu.addAction(edge_action)
-        
         firefox_action = QAction("Firefox", self)
         firefox_action.triggered.connect(lambda: self.set_user_agent(3))
         ua_menu.addAction(firefox_action)
         
-        # Add help menu
         help_menu = menu_bar.addMenu("Help")
-        
         about_action = QAction("About", self)
         about_action.triggered.connect(self.show_about)
         help_menu.addAction(about_action)
     
     def toggle_force_fallback(self, checked):
-        """Toggle force fallback rendering mode."""
         self.force_fallback = checked
         self.servo_thread.set_force_fallback(checked)
-        # Reload current page to apply changes
         self.reload_current_page()
     
     def show_about(self):
-        """Show about dialog."""
-        about_html = """
+        about_html = f"""
         <!DOCTYPE html>
         <html>
         <head>
             <meta charset="utf-8">
             <title>About</title>
             <style>
-                body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+                body {{ 
+                    font-family: Arial, sans-serif; 
+                    text-align: center; 
+                    padding: 2%; 
+                    font-size: 1.2em; 
+                    background-color: { "#212121" if self.dark_mode_manager.is_dark_mode() else "#fff" }; 
+                    color: { "#e0e0e0" if self.dark_mode_manager.is_dark_mode() else "#333" }; 
+                }}
             </style>
         </head>
         <body>
@@ -730,73 +767,75 @@ class CustomWebRenderer(QMainWindow):
         </body>
         </html>
         """
-        # Get current tab and display about info
-        current_tab = self.tabs.currentWidget()
+        current_tab = self.browser_layout.get_tabs().currentWidget()
         if current_tab:
             current_tab.web_view.setHtml(about_html)
-            self.tabs.setTabText(self.tabs.currentIndex(), "About")
+            self.browser_layout.get_tabs().setTabText(self.browser_layout.get_tabs().currentIndex(), "About")
     
     def reload_current_page(self):
-        """Reload the current page."""
-        current_tab = self.tabs.currentWidget()
+        current_tab = self.browser_layout.get_tabs().currentWidget()
         if current_tab and hasattr(current_tab, 'url_bar'):
             url = current_tab.url_bar.text()
             if url:
                 current_tab.handle_input()
     
     def set_search_engine(self, engine_url):
-        """Set the default search engine for all tabs."""
-        current_tab = self.tabs.currentWidget()
+        current_tab = self.browser_layout.get_tabs().currentWidget()
         if current_tab:
             current_tab.default_search_engine = engine_url
             
     def set_user_agent(self, ua_index):
-        """Set a specific user agent for all requests."""
         self.servo_thread.set_user_agent(ua_index)
     
     def add_new_tab(self, url):
         self.tab_counter += 1
         tab_id = f"tab_{self.tab_counter}"
-        new_tab = BrowserTab(self.servo_thread, tab_id, url)
-        
+        new_tab = BrowserTab(self.servo_thread, tab_id, url, self.dark_mode_manager)
         tab_title = "New Tab"
-        self.tabs.addTab(new_tab, tab_title)
-        self.tabs.setCurrentWidget(new_tab)
+        self.browser_layout.add_tab(new_tab, tab_title)
         self.tabs_dict[tab_id] = new_tab
     
     def update_tab_content(self, content_path, tab_id):
-        """Update tab content when received from Servo thread."""
+        print(f"Updating tab content for tab_id: {tab_id} with content: {content_path}")
         if tab_id in self.tabs_dict:
             tab = self.tabs_dict[tab_id]
             title = tab.update_content(content_path)
-            
-            # Update tab title
-            idx = self.tabs.indexOf(tab)
+            idx = self.browser_layout.get_tabs().indexOf(tab)
             if idx != -1:
                 tab_title = title[:15] + "..." if len(title) > 15 else title
-                self.tabs.setTabText(idx, tab_title)
+                self.browser_layout.get_tabs().setTabText(idx, tab_title)
     
+    def show_loading(self, tab_id):
+        self.browser_layout.show_loading(tab_id)
+
+    def hide_loading(self, tab_id):
+        self.browser_layout.hide_loading(tab_id)
+
     def close_tab(self, index):
-        if self.tabs.count() > 1:
-            # Get tab ID and remove from dictionary
-            tab = self.tabs.widget(index)
+        if self.browser_layout.get_tabs().count() > 1:
+            tab = self.browser_layout.get_tabs().widget(index)
             for tab_id, tab_obj in list(self.tabs_dict.items()):
                 if tab_obj == tab:
                     del self.tabs_dict[tab_id]
                     break
-            
-            self.tabs.removeTab(index)
+            self.browser_layout.get_tabs().removeTab(index)
         else:
             self.close()
-    
+
     def closeEvent(self, event):
-        """Ensure Servo thread shuts down when the browser is closed."""
+        # Ensure the thread is stopped properly
         self.servo_thread.stop()
         event.accept()
 
-# Run the application
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = CustomWebRenderer()
-    window.show()
-    sys.exit(app.exec_())
+    window = None
+    try:
+        window = CustomWebRenderer()
+        window.show()
+        sys.exit(app.exec_())
+    except Exception as e:
+        print(f"Application failed to start: {str(e)}")
+        if window and hasattr(window, 'servo_thread'):
+            window.servo_thread.stop()
+        sys.exit(1)

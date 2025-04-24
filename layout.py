@@ -1,38 +1,62 @@
 # layout.py
+from PyQt5.QtWidgets import QVBoxLayout, QWidget, QTabWidget, QToolButton, QProgressBar, QTabBar
+from PyQt5.QtCore import Qt
 
-class LayoutBox:
-    def __init__(self, node, x, y, width, height):
-        self.node = node
-        self.x = x
-        self.y = y
-        self.width = width
-        self.height = height
-        self.children = []  # Store child boxes for proper nesting
+class BrowserLayout(QWidget):
+    def __init__(self, parent, dark_mode_manager, servo_thread, tabs_dict, new_tab_button):
+        super().__init__(parent)
+        self.parent = parent  # CustomWebRenderer instance
+        self.dark_mode_manager = dark_mode_manager
+        self.servo_thread = servo_thread
+        self.tabs_dict = tabs_dict
+        self.new_tab_button = new_tab_button
+        self.loading_indicators = {}  # Track loading indicators for each tab
 
-    def __repr__(self):
-        return (f"LayoutBox({self.node.tag}, x={self.x}, y={self.y}, "
-                f"width={self.width}, height={self.height}, children={len(self.children)})")
+        # Main layout
+        self.main_layout = QVBoxLayout()
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
 
+        # Add the toolbar (with dark mode button)
+        self.toolbar = self.dark_mode_manager.get_toolbar()
+        self.main_layout.addWidget(self.toolbar)
 
-def layout_tree(node, x, y, parent_width=800):
-    """
-    Recursively generates layout boxes for each node in the HTML structure.
-    """
-    if isinstance(node, str):
-        return None  # Ignore plain text (can be handled separately)
+        # Tab widget
+        self.tabs = QTabWidget()
+        self.tabs.setTabsClosable(True)
+        self.tabs.tabCloseRequested.connect(self.parent.close_tab)
 
-    width = parent_width  # Allow dynamic width adjustment
-    height = 20  # Default height (can be modified based on content)
-    
-    # Create a layout box for the current node
-    box = LayoutBox(node, x, y, width, height)
-    
-    # Layout child elements
-    child_y = y + height  # Move below the current box
-    for child in node.children:
-        child_box = layout_tree(child, x + 10, child_y, width - 20)  # Indent children
-        if child_box:
-            box.children.append(child_box)
-            child_y += child_box.height  # Stack children below each other
+        # New tab button
+        self.new_tab_button.setText("+")
+        self.new_tab_button.clicked.connect(lambda: self.parent.add_new_tab(""))
+        self.tabs.setCornerWidget(self.new_tab_button, Qt.TopRightCorner)
 
-    return box
+        self.main_layout.addWidget(self.tabs)
+        self.setLayout(self.main_layout)
+
+    def add_tab(self, tab_widget, title):
+        # Add the tab to the QTabWidget
+        idx = self.tabs.addTab(tab_widget, title)
+        self.tabs.setCurrentIndex(idx)
+
+        # Create a loading indicator for this tab
+        loading_indicator = QProgressBar()
+        loading_indicator.setFixedSize(24, 24)  # Match the stylesheet size
+        loading_indicator.setRange(0, 0)  # Indeterminate mode (spinning)
+        loading_indicator.setVisible(False)  # Hidden by default
+        self.loading_indicators[tab_widget.tab_id] = loading_indicator
+
+        # Add the loading indicator to the tab bar
+        self.tabs.tabBar().setTabButton(idx, QTabBar.LeftSide, loading_indicator)
+
+    def show_loading(self, tab_id):
+        if tab_id in self.loading_indicators:
+            print(f"Showing loading indicator for tab_id: {tab_id}")
+            self.loading_indicators[tab_id].setVisible(True)
+
+    def hide_loading(self, tab_id):
+        if tab_id in self.loading_indicators:
+            print(f"Hiding loading indicator for tab_id: {tab_id}")
+            self.loading_indicators[tab_id].setVisible(False)
+
+    def get_tabs(self):
+        return self.tabs

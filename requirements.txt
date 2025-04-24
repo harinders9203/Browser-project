@@ -1,0 +1,4 @@
+PyQt5>=5.15.0
+requests>=2.25.1
+PySocks>=1.7.1
+stem>=1.8.0 

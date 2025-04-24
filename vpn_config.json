@@ -1,0 +1,28 @@
+{
+  "servers": {
+    "usa": {
+      "host": "vpn-usa.example.com",
+      "port": 1194,
+      "protocol": "udp",
+      "username": "",
+      "password": ""
+    },
+    "germany": {
+      "host": "vpn-de.example.com",
+      "port": 1194,
+      "protocol": "udp",
+      "username": "",
+      "password": ""
+    },
+    "japan": {
+      "host": "vpn-jp.example.com",
+      "port": 1194,
+      "protocol": "udp",
+      "username": "",
+      "password": ""
+    }
+  },
+  "connection_timeout": 30,
+  "reconnect_attempts": 3,
+  "default_country": "usa"
+}
