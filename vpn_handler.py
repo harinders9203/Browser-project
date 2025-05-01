@@ -1,17 +1,17 @@
-from PyQt5.QtCore import QObject, pyqtSignal
-import subprocess
-import sys
-import os
-import json
-import time
 import requests
+import socks
 import socket
-import threading
-import tempfile
-import platform
+import json
+import os
+import logging
+import time
+from typing import Dict, Optional
+from PyQt5.QtCore import QObject, pyqtSignal
+import urllib3
+import ssl
 
 class VPNHandler(QObject):
-    status_changed = pyqtSignal(bool, str)  # Emits (is_connected, message)
+    status_changed = pyqtSignal(bool, str)  # Signal to emit status updates (is_connected, message)
     
     def __init__(self):
         super().__init__()
@@ -19,186 +19,265 @@ class VPNHandler(QObject):
         self.config_file = os.path.join(self.config_dir, "vpn_settings.json")
         self.is_connected = False
         self.current_server = None
-        self.vpn_process = None
-        self.load_config()
-        self.openvpn_path = self._find_openvpn()
+        self.original_socket = None
+        self.original_getaddrinfo = None
+        self.session = None
         
-    def _find_openvpn(self):
-        """Find OpenVPN executable path based on the operating system."""
-        system = platform.system().lower()
-        if system == 'windows':
-            paths = [
-                r"C:\Program Files\OpenVPN\bin\openvpn.exe",
-                r"C:\Program Files (x86)\OpenVPN\bin\openvpn.exe"
-            ]
-            for path in paths:
-                if os.path.exists(path):
-                    return path
-        elif system == 'linux':
-            return "/usr/sbin/openvpn"
-        elif system == 'darwin':  # macOS
-            return "/usr/local/sbin/openvpn"
-        return None
+        # Set up logging
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger("VPNHandler")
 
-    def load_config(self):
-        """Load VPN configuration from file."""
+    def _test_socks_connection(self, host, port, timeout=10):
+        """Test if we can establish a connection to the SOCKS5 server"""
         try:
-            os.makedirs(self.config_dir, exist_ok=True)
-            if os.path.exists(self.config_file):
-                with open(self.config_file, 'r') as f:
-                    config = json.load(f)
-                    self.servers = config.get('servers', self.get_default_servers())
+            # Create a test socket
+            test_socket = socks.socksocket()
+            test_socket.settimeout(timeout)
+            test_socket.set_proxy(socks.SOCKS5, host, port)
+            
+            # Try to connect to a known working server (Cloudflare DNS)
+            test_socket.connect(("1.1.1.1", 53))
+            test_socket.close()
+            return True
+        except Exception as e:
+            self.logger.error(f"SOCKS5 connection test failed: {str(e)}")
+            return False
+
+    def _create_session(self, proxy_host, proxy_port):
+        session = requests.Session()
+        
+        # Configure SOCKS5 proxy for all protocols
+        proxy_url = f'socks5h://{proxy_host}:{proxy_port}'
+        session.proxies = {
+            'http': proxy_url,
+            'https': proxy_url
+        }
+        
+        # Force direct DNS resolution instead of using Google DNS
+        session.trust_env = False
+        
+        # Add headers to prevent DNS leaks
+        session.headers.update({
+            'Accept-Encoding': 'gzip, deflate',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'DNT': '1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        })
+        
+        return session
+
+    def _get_current_ip(self):
+        """Get current IP information with multiple service verification"""
+        if not self.session:
+            if self.is_connected and self.current_server:
+                self.session = self._create_session(self.current_server['host'], self.current_server['port'])
             else:
-                self.servers = self.get_default_servers()
-                self.save_config()
-        except Exception as e:
-            print(f"Error loading VPN config: {e}")
-            self.servers = self.get_default_servers()
+                self.session = requests.Session()
 
-    def save_config(self):
-        """Save VPN configuration to file."""
-        try:
-            config = {
-                'servers': self.servers
-            }
-            with open(self.config_file, 'w') as f:
-                json.dump(config, f, indent=2)
-        except Exception as e:
-            print(f"Error saving VPN config: {e}")
+        # Create a separate session for IP checks to avoid recursion
+        ip_check_session = requests.Session()
+        if self.is_connected and self.current_server:
+            proxy_url = f'socks5h://{self.current_server["host"]}:{self.current_server["port"]}'
+            ip_check_session.proxies = {'http': proxy_url, 'https': proxy_url}
 
-    def get_default_servers(self):
-        """Return a list of default free VPN servers."""
-        return [
-            {
-                'name': 'VPNGate Japan',
-                'config_url': 'https://www.vpngate.net/common/openvpn_download.aspx?sid=5076014&host=public-vpn-40.opengw.net&port=443&hid=12199527',
-                'country': 'Japan'
-            },
-            {
-                'name': 'VPNGate US',
-                'config_url': 'https://www.vpngate.net/common/openvpn_download.aspx?sid=5076016&host=public-vpn-172.opengw.net&port=443&hid=12199529',
-                'country': 'United States'
-            }
+        # List of IP checking services in order of preference
+        services = [
+            ('http://ip-api.com/json/', lambda r: (r['query'], r.get('city', 'Unknown'), r['country'])),
+            ('http://www.geoplugin.net/json.gp', lambda r: (r['geoplugin_request'], r.get('geoplugin_city', 'Unknown'), r['geoplugin_countryName'])),
+            ('https://api64.ipify.org?format=json', lambda r: (r['ip'], 'Unknown', 'Unknown')),
         ]
 
-    def _download_config(self, server):
-        """Download OpenVPN configuration file for the selected server."""
-        try:
-            response = requests.get(server['config_url'], timeout=10)
-            if response.status_code == 200:
-                config_path = os.path.join(self.config_dir, f"{server['name'].lower().replace(' ', '_')}.ovpn")
-                with open(config_path, 'wb') as f:
-                    f.write(response.content)
-                return config_path
-        except Exception as e:
-            print(f"Error downloading config: {e}")
+        errors = []
+        for url, parser in services:
+            try:
+                self.logger.info(f"Trying IP service: {url}")
+                response = ip_check_session.get(url, timeout=5)
+                if response.status_code == 200:
+                    data = response.json()
+                    self.logger.info(f"Successfully got IP info from {url}")
+                    return parser(data)
+            except Exception as e:
+                error_msg = f"{url}: {str(e)}"
+                self.logger.error(error_msg)
+                errors.append(error_msg)
+                continue
+
+        self.logger.error(f"All IP services failed: {'; '.join(errors)}")
         return None
 
-    def get_current_ip(self):
-        """Get current public IP address."""
+    def get_default_servers(self) -> Dict[str, dict]:
+        """Return a dictionary of default VPN servers."""
+        return {
+            "US Elite 1": {
+                "host": "67.201.39.14",
+                "port": 4145,
+                "name": "US Elite 1",
+                "country": "United States"
+            },
+            "US Elite 2": {
+                "host": "199.102.104.70",
+                "port": 4145,
+                "name": "US Elite 2",
+                "country": "United States"
+            },
+            "Singapore Elite": {
+                "host": "8.215.15.163",
+                "port": 4145,
+                "name": "Singapore Elite",
+                "country": "Singapore"
+            }
+        }
+
+    def _setup_proxy(self, server):
+        """Set up system-wide SOCKS5 proxy"""
         try:
-            response = requests.get('https://api.ipify.org?format=json', timeout=5)
-            return response.json()['ip']
-        except:
-            return "Unknown"
+            # Store original socket
+            self.original_socket = socket.socket
+            self.original_getaddrinfo = socket.getaddrinfo
 
-    def connect(self, server_index=0):
-        """Connect to VPN server."""
-        if self.is_connected:
-            self.status_changed.emit(True, "Already connected to VPN")
-            return
-
-        if not self.openvpn_path:
-            self.status_changed.emit(False, "OpenVPN not found. Please install OpenVPN first.")
-            return
-
-        try:
-            server = self.servers[server_index]
-            self.current_server = server
-            
-            # Get original IP
-            original_ip = self.get_current_ip()
-            self.status_changed.emit(False, f"Current IP: {original_ip}")
-            
-            # Download config if needed
-            config_path = os.path.join(self.config_dir, f"{server['name'].lower().replace(' ', '_')}.ovpn")
-            if not os.path.exists(config_path):
-                self.status_changed.emit(False, "Downloading VPN configuration...")
-                config_path = self._download_config(server)
-                if not config_path:
-                    raise Exception("Failed to download VPN configuration")
-
-            # Start OpenVPN process
-            self.status_changed.emit(False, "Connecting to VPN...")
-            startupinfo = None
-            if platform.system().lower() == 'windows':
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-
-            self.vpn_process = subprocess.Popen(
-                [self.openvpn_path, '--config', config_path],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                startupinfo=startupinfo
+            # Configure SOCKS5 proxy
+            socks.set_default_proxy(
+                proxy_type=socks.SOCKS5,
+                addr=server['host'],
+                port=int(server['port']),
+                username=server.get('username'),
+                password=server.get('password'),
+                rdns=True
             )
-
-            # Wait for connection
-            time.sleep(5)  # Give OpenVPN some time to connect
             
-            # Verify IP change
-            new_ip = self.get_current_ip()
-            if new_ip == original_ip:
-                raise Exception("IP address did not change")
+            # Replace socket with SOCKS socket
+            socket.socket = socks.socksocket
             
-            self.is_connected = True
-            self.status_changed.emit(True, f"Connected to {server['name']} (IP: {new_ip})")
+            # Create a simple DNS resolver that doesn't use the proxy
+            def getaddrinfo_direct(*args, **kwargs):
+                return self.original_getaddrinfo(*args, **kwargs)
             
+            # Only use proxy for non-IP verification requests
+            socket.getaddrinfo = getaddrinfo_direct
+            
+            return True
         except Exception as e:
-            if self.vpn_process:
-                self.vpn_process.terminate()
-                self.vpn_process = None
-            self.is_connected = False
-            self.status_changed.emit(False, f"Failed to connect: {str(e)}")
+            self.logger.error(f"Error setting up proxy: {str(e)}")
+            return False
+
+    def connect(self, server):
+        """Connect to a VPN server"""
+        if not isinstance(server, dict):
+            self.logger.error("Invalid server configuration")
+            self.status_changed.emit(False, "Invalid server configuration")
+            return False
+
+        self.logger.info(f"Connecting to {server['name']}...")
+
+        try:
+            # First test the SOCKS5 connection
+            if not self._test_socks_connection(server['host'], server['port'], timeout=5):
+                self.logger.error("Failed to establish SOCKS5 connection")
+                self.status_changed.emit(False, "Failed to connect to VPN server")
+                return False
+
+            # Set up proxy
+            if not self._setup_proxy(server):
+                self.logger.error("Failed to set up proxy")
+                self.status_changed.emit(False, "Failed to set up proxy")
+                return False
+
+            # Create new session with proxy
+            self.session = self._create_session(server['host'], server['port'])
+
+            # Test connection with retries
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Set connection state
+                    self.is_connected = True
+                    self.current_server = server
+                    
+                    # Verify IP location using separate session
+                    ip_info = self._get_current_ip()
+                    if not ip_info:
+                        raise Exception("Could not verify IP location")
+                    
+                    ip, city, country = ip_info
+                    self.logger.info(f"Connected successfully!")
+                    self.logger.info(f"New IP: {ip}")
+                    self.logger.info(f"Location: {city}, {country}")
+                    self.status_changed.emit(True, f"Connected to {server['name']}")
+                    return True
+                    
+                except Exception as e:
+                    self.logger.warning(f"Connection attempt {attempt + 1} failed: {e}")
+                    if attempt < max_retries - 1:
+                        time.sleep(2)
+                    continue
+
+            self.logger.error("All connection attempts failed")
+            self.disconnect()
+            self.status_changed.emit(False, "All connection attempts failed")
+            return False
+
+        except Exception as e:
+            self.logger.error(f"Connection failed: {e}")
+            self.disconnect()
+            self.status_changed.emit(False, f"Connection failed: {str(e)}")
+            return False
 
     def disconnect(self):
-        """Disconnect from VPN."""
-        if not self.is_connected:
-            self.status_changed.emit(False, "Not connected to VPN")
-            return
-
-        try:
-            if self.vpn_process:
-                self.vpn_process.terminate()
-                self.vpn_process = None
+        """Disconnect from VPN"""
+        # Restore original socket and DNS resolver
+        if self.original_socket:
+            socket.socket = self.original_socket
+        if self.original_getaddrinfo:
+            socket.getaddrinfo = self.original_getaddrinfo
             
-            time.sleep(2)  # Give time for the connection to close
-            current_ip = self.get_current_ip()
+        # Close and clear session
+        if self.session:
+            self.session.close()
+            self.session = None
             
-            self.is_connected = False
-            self.current_server = None
-            self.status_changed.emit(False, f"Disconnected from VPN (IP: {current_ip})")
-            
-        except Exception as e:
-            self.status_changed.emit(False, f"Error disconnecting: {str(e)}")
+        self.is_connected = False
+        self.current_server = None
+        self.logger.info("Disconnected from VPN")
+        self.status_changed.emit(False, "Disconnected")
 
-    def toggle_connection(self):
-        """Toggle VPN connection on/off."""
-        if self.is_connected:
-            self.disconnect()
-        else:
-            self.connect()
-
-    def get_status(self):
-        """Get current VPN status."""
+    def get_status(self) -> tuple:
+        """Get current VPN status"""
         if self.is_connected and self.current_server:
-            try:
-                current_ip = self.get_current_ip()
-                return True, f"Connected to {self.current_server['name']} (IP: {current_ip})"
-            except:
-                return True, f"Connected to {self.current_server['name']}"
+            ip_info = self._get_current_ip()
+            if ip_info:
+                return True, f"Connected to {self.current_server['name']} ({ip_info[0]})"
         return False, "Not connected"
 
-    def cleanup(self):
-        """Clean up VPN connection on application exit."""
-        if self.is_connected:
-            self.disconnect() 
+    def get_ip_info(self):
+        """Get IP and location information"""
+        try:
+            # Try multiple IP info services for verification
+            services = [
+                'https://ipinfo.io/json',
+                'https://api.ipapi.com/api/check',
+                'https://ipapi.co/json/'
+            ]
+            
+            for service in services:
+                try:
+                    response = self.session.get(service, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        # Verify ISP information is present
+                        if 'org' in data or 'isp' in data:
+                            return {
+                                'ip': data.get('ip', ''),
+                                'city': data.get('city', ''),
+                                'region': data.get('region', ''),
+                                'country': data.get('country', ''),
+                                'isp': data.get('org', data.get('isp', '')),
+                                'loc': data.get('loc', ''),
+                                'hostname': data.get('hostname', '')
+                            }
+                except:
+                    continue
+                
+            return None
+        except Exception as e:
+            self.logger.error(f"Error getting IP info: {str(e)}")
+            return None

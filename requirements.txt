@@ -1,4 +1,10 @@
-PyQt5>=5.15.0
+# Python >= 3.8, < 3.12
+PyQt5==5.15.6
+PyQtWebEngine==5.15.6
+PyQt5-sip<13,>=12.8
+PyQt5-Qt5>=5.15.2
 requests>=2.25.1
-PySocks>=1.7.1
-stem>=1.8.0 
+beautifulsoup4>=4.9.3
+tldextract>=3.1.0
+python-whois>=0.7.3
+urllib3>=1.26.5 

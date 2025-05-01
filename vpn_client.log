@@ -1,2 +1,23 @@
 2025-04-24 07:48:36,420 - VPN-Client - INFO - Created default configuration at vpn_config.json
 2025-04-24 07:49:56,226 - VPN-Client - INFO - Created default configuration at ./vpn_config\vpn_config.json
+2025-04-24 23:51:10,878 - VPN-Client - INFO - Original IP: 182.68.93.189
+2025-04-24 23:53:01,297 - VPN-Client - INFO - Original IP: 182.68.93.189
+2025-04-24 23:54:28,266 - VPN-Client - INFO - Original IP: 182.68.93.189
+2025-04-24 23:54:55,932 - VPN-Client - ERROR - Failed to connect to proxy: string indices must be integers, not 'str'
+2025-04-24 23:57:20,124 - VPN-Client - INFO - Original IP: 182.68.93.189
+2025-04-24 23:57:26,637 - VPN-Client - ERROR - Command error: string indices must be integers, not 'str'
+2025-04-24 23:57:39,184 - VPN-Client - ERROR - Failed to connect to proxy: string indices must be integers, not 'str'
+2025-04-24 23:57:43,452 - VPN-Client - ERROR - Command error: string indices must be integers, not 'str'
+2025-04-24 23:59:33,889 - VPN-Client - INFO - Connecting to Montreal, Canada...
+2025-04-24 23:59:43,923 - VPN-Client - ERROR - Error getting IP: HTTPConnectionPool(host='ip-api.com', port=80): Max retries exceeded with url: /json (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000021D599E3250>: Failed to establish a new connection: Error connecting to SOCKS5 proxy 192.111.139.163:19402: timed out'))
+2025-04-24 23:59:43,924 - VPN-Client - ERROR - Failed to verify connection
+2025-04-24 23:59:43,925 - VPN-Client - INFO - Disconnected from proxy
+2025-04-25 00:01:26,145 - VPN-Client - INFO - Connecting to Toronto, Canada...
+2025-04-25 00:01:26,146 - VPN-Client - ERROR - Connection failed: socksocket.settimeout() missing 1 required positional argument: 'timeout'
+2025-04-25 00:01:26,147 - VPN-Client - INFO - Disconnected from proxy
+2025-04-25 00:02:04,635 - VPN-Client - INFO - Connecting to London, United Kingdom...
+2025-04-25 00:02:04,636 - VPN-Client - ERROR - Connection failed: socksocket.settimeout() missing 1 required positional argument: 'timeout'
+2025-04-25 00:02:04,636 - VPN-Client - INFO - Disconnected from proxy
+2025-04-25 00:03:49,093 - VPN-Client - ERROR - Country canada not found in server list
+2025-04-25 00:03:53,053 - VPN-Client - ERROR - Country canada not found in server list
+2025-04-25 00:05:05,219 - VPN-Client - ERROR - Error getting current IP: VPNClient.connect.<locals>.<lambda>() takes 1 positional argument but 2 were given

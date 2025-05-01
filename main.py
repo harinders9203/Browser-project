@@ -1,6 +1,7 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QTabWidget, QAction, QToolButton, QLineEdit, QProgressBar, QHBoxLayout, QPushButton, QInputDialog, QMessageBox, QFileDialog
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QTabWidget, QAction, QToolButton, QLineEdit, QProgressBar, QHBoxLayout, QPushButton, QInputDialog, QMessageBox, QFileDialog, QSizePolicy, QMenu, QDialog, QListWidget, QListWidgetItem, QToolBar
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl, QMutex
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
+from PyQt5.QtGui import QIcon
 import sys
 import subprocess
 import requests
@@ -15,11 +16,17 @@ import base64
 from dark_mode import DarkModeManager
 from layout import BrowserLayout
 from history import BrowserHistoryProcessor
+from vpn_handler import VPNHandler
+from adblocker import AdBlocker  # Fix import name
+from phishing_detector import PhishingDetector
+from bookmarks import BookmarkManager
+from bookmark_history_manager import BookmarkHistoryManager
 
 class ServoThread(QThread):
     content_ready = pyqtSignal(str, str)
     loading_started = pyqtSignal(str)
     loading_finished = pyqtSignal(str)
+    phishing_detected = pyqtSignal(str, dict)  # Add this signal
 
     def __init__(self, parent=None, dark_mode_manager=None):
         super().__init__(parent)
@@ -39,16 +46,20 @@ class ServoThread(QThread):
         self.dark_mode = False
         self.vpn_enabled = False
         self.dark_mode_manager = dark_mode_manager
-        self.ad_filters = [
-            "doubleclick.net",
-            "googlesyndication.com",
-            "adserver",
-            "adservice",
-            "/ads/",
-            "/banner",
-            "/ad-",
-            "googleadservices.com",
-        ]
+        self.ad_blocker = AdBlocker()
+        self.ad_blocker_enabled = True
+        
+        # Initialize ad blocker with aggressive settings
+        print("Initializing ad blocker with aggressive settings...")
+        try:
+            self.ad_blocker.load_filters()
+            print("Ad blocker filters loaded successfully")
+        except Exception as e:
+            print(f"Error loading ad blocker filters: {e}")
+            
+        # Force ad blocking to be always on
+        self.ad_blocker_enabled = True
+        print("Ad blocking enabled with aggressive settings")
         
     def _find_free_port(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -155,8 +166,13 @@ class ServoThread(QThread):
         print("ServoThread stopped")
 
     def _is_ad_url(self, url):
-        url_lower = url.lower()
-        return any(filter_str in url_lower for filter_str in self.ad_filters)
+        """Check if a URL is an ad URL"""
+        try:
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+            return self.ad_blocker.is_ad_domain(url)
+        except:
+            return False
 
     def _fallback_rendering(self, url, tab_id):
         print(f"Starting fallback rendering for {url} (tab_id: {tab_id})")
@@ -286,10 +302,16 @@ class ServoThread(QThread):
                 if response.status_code == 200:
                     try:
                         html_content = response.content.decode('utf-8', errors='replace')
+                        # Apply ad blocking
+                        if self.ad_blocker_enabled:
+                            html_content = self._block_ads(html_content, url)
                         print(f"Raw HTML length before processing: {len(html_content)}")
                     except Exception as e:
                         print(f"Error decoding content: {str(e)}")
                         html_content = response.text
+                        # Apply ad blocking
+                        if self.ad_blocker_enabled:
+                            html_content = self._block_ads(html_content, url)
                         print(f"Fallback text length: {len(html_content)}")
                 else:
                     html_content = f"""
@@ -425,11 +447,15 @@ class ServoThread(QThread):
                 else:
                     try:
                         html_content = response.content.decode('utf-8', errors='replace')
-                        html_content = self._block_ads(html_content, url)
+                        # Apply ad blocking
+                        if self.ad_blocker_enabled:
+                            html_content = self._block_ads(html_content, url)
                     except Exception as e:
                         print(f"Error decoding content: {str(e)}")
                         html_content = response.text
-                        html_content = self._block_ads(html_content, url)
+                        # Apply ad blocking
+                        if self.ad_blocker_enabled:
+                            html_content = self._block_ads(html_content, url)
                 
                 base_url = response.url
                 base_domain = urllib.parse.urlparse(base_url).netloc
@@ -546,22 +572,22 @@ class ServoThread(QThread):
                 <meta charset="utf-8">
                 <title>Error</title>
                 <style>
-                    body {{ 
-                        font-family: Arial, sans-serif; 
-                        padding: 2%; 
-                        line-height: 1.6; 
-                        font-size: 1.2em; 
-                        background-color: { "#212121" if self.dark_mode else "#fff" }; 
-                        color: { "#e0e0e0" if self.dark_mode else "#333" }; 
+                    body {{
+                        font-family: Arial, sans-serif;
+                        padding: 2%;
+                        line-height: 1.6;
+                        font-size: 1.2em;
+                        background-color: {"#212121" if self.dark_mode else "#fff"};
+                        color: {"#e0e0e0" if self.dark_mode else "#333"};
                     }}
-                    .error-container {{ 
-                        background-color: { "#2d2d2d" if self.dark_mode else "#fff3f3" }; 
-                        border-left: 4px solid { "#ff6d6d" if self.dark_mode else "#e74c3c" }; 
-                        padding: 2%; 
-                        border-radius: 4px; 
-                        box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+                    .error-container {{
+                        background-color: {"#2d2d2d" if self.dark_mode else "#fff3f3"};
+                        border-left: 4px solid {"#ff6d6d" if self.dark_mode else "#e74c3c"};
+                        padding: 2%;
+                        border-radius: 4px;
+                        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
                     }}
-                    h2 {{ margin-top: 0; color: { "#ff6d6d" if self.dark_mode else "#e74c3c" }; }}
+                    h2 {{margin-top: 0; color: {"#ff6d6d" if self.dark_mode else "#e74c3c"};}}
                 </style>
             </head>
             <body>
@@ -585,18 +611,151 @@ class ServoThread(QThread):
             print(f"Emitting loading_finished signal for tab_id: {tab_id}")
 
     def _block_ads(self, html_content, base_url):
-        from bs4 import BeautifulSoup
+        """Block ads and popups in the HTML content"""
+        if not self.ad_blocker_enabled:
+            return html_content
+            
         try:
-            soup = BeautifulSoup(html_content, 'html.parser')
-            for element in soup.find_all(['script', 'iframe', 'img', 'div', 'a']):
-                src = element.get('src', '') or element.get('href', '') or ''
-                if src and self._is_ad_url(src):
-                    element.decompose()
-                if any('ad' in str(val).lower() for val in element.get('class', []) + [element.get('id', '')]):
-                    element.decompose()
-            return str(soup)
+            # First apply the ad blocker's rules
+            filtered_content = self.ad_blocker.block_ads(html_content)
+            
+            # Add security headers and enhanced blocking rules
+            security_headers = """
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+                <meta http-equiv="X-Frame-Options" content="DENY">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:; frame-src 'none'; frame-ancestors 'none'; popup 'none';">
+                <style>
+                    /* Enhanced ad and popup blocking rules */
+                    [class*="popup"], [id*="popup"],
+                    [class*="modal"], [id*="modal"],
+                    [class*="overlay"], [id*="overlay"],
+                    [class*="dialog"], [id*="dialog"],
+                    [class*="alert"], [id*="alert"],
+                    [class*="notification"], [id*="notification"],
+                    [class*="banner"], [id*="banner"],
+                    [class*="float"], [id*="float"],
+                    [class*="sticky"], [id*="sticky"],
+                    [class*="fixed"], [id*="fixed"],
+                    [class*="ad"], [id*="ad"],
+                    [class*="promo"], [id*="promo"],
+                    [class*="sponsor"], [id*="sponsor"],
+                    [class*="social"], [id*="social"],
+                    [class*="newsletter"], [id*="newsletter"],
+                    [class*="subscribe"], [id*="subscribe"],
+                    iframe:not([src*="about:blank"]),
+                    div[style*="position: fixed"],
+                    div[style*="position:fixed"],
+                    div[style*="z-index: 9"],
+                    div[style*="z-index:9"],
+                    div[style*="z-index: 99"],
+                    div[style*="z-index:99"],
+                    div[style*="z-index: 999"],
+                    div[style*="z-index:999"],
+                    div[style*="z-index: 9999"],
+                    div[style*="z-index:9999"] {
+                        display: none !important;
+                        visibility: hidden !important;
+                        opacity: 0 !important;
+                        pointer-events: none !important;
+                        height: 0 !important;
+                        width: 0 !important;
+                        position: absolute !important;
+                        top: -9999px !important;
+                        left: -9999px !important;
+                        z-index: -999 !important;
+                        clip: rect(0, 0, 0, 0) !important;
+                        overflow: hidden !important;
+                    }
+                    
+                    /* Block floating elements */
+                    body * {
+                        position: static !important;
+                        top: auto !important;
+                        left: auto !important;
+                        right: auto !important;
+                        bottom: auto !important;
+                    }
+                </style>
+                <script>
+                    (function() {
+                        // Block all popup-related functions
+                        window.open = function() { return null; };
+                        window.alert = function() { return null; };
+                        window.confirm = function() { return null; };
+                        window.prompt = function() { return null; };
+                        
+                        // Block common ad-related properties
+                        Object.defineProperty(window, 'canRunAds', { value: false });
+                        Object.defineProperty(window, 'canShowAds', { value: false });
+                        
+                        // Aggressive popup and overlay removal
+                        function removeAds() {
+                            const selectors = [
+                                '[class*="popup"]', '[id*="popup"]',
+                                '[class*="modal"]', '[id*="modal"]',
+                                '[class*="overlay"]', '[id*="overlay"]',
+                                '[class*="dialog"]', '[id*="dialog"]',
+                                '[class*="alert"]', '[id*="alert"]',
+                                '[class*="notification"]', '[id*="notification"]',
+                                '[class*="banner"]', '[id*="banner"]',
+                                '[class*="float"]', '[id*="float"]',
+                                '[class*="sticky"]', '[id*="sticky"]',
+                                '[class*="fixed"]', '[id*="fixed"]',
+                                '[class*="ad"]', '[id*="ad"]',
+                                '[class*="promo"]', '[id*="promo"]',
+                                '[class*="sponsor"]', '[id*="sponsor"]',
+                                '[class*="social"]', '[id*="social"]',
+                                '[class*="newsletter"]', '[id*="newsletter"]',
+                                '[class*="subscribe"]', '[id*="subscribe"]',
+                                'iframe:not([src*="about:blank"])'
+                            ];
+                            
+                            selectors.forEach(selector => {
+                                document.querySelectorAll(selector).forEach(element => {
+                                    element.remove();
+                                });
+                            });
+                            
+                            // Remove elements with fixed position or high z-index
+                            document.querySelectorAll('*').forEach(element => {
+                                const style = window.getComputedStyle(element);
+                                if (style.position === 'fixed' || 
+                                    style.position === 'sticky' ||
+                                    parseInt(style.zIndex) > 100) {
+                                    element.remove();
+                                }
+                            });
+                        }
+                        
+                        // Run immediately and set up observers
+                        removeAds();
+                        
+                        // Create a mutation observer to remove new ads
+                        const observer = new MutationObserver(mutations => {
+                            removeAds();
+                        });
+                        
+                        // Start observing the document with the configured parameters
+                        observer.observe(document.documentElement, {
+                            childList: true,
+                            subtree: true
+                        });
+                        
+                        // Run periodically to catch dynamically added content
+                        setInterval(removeAds, 1000);
+                    })();
+                </script>
+            """
+            
+            # Insert security headers at the start of head
+            if '<head>' in filtered_content:
+                filtered_content = filtered_content.replace('<head>', '<head>' + security_headers)
+            else:
+                filtered_content = security_headers + filtered_content
+                
+            return filtered_content
         except Exception as e:
-            print(f"Error blocking ads: {e}")
+            print(f"Error in _block_ads: {e}")
             return html_content
 
     def set_user_agent(self, ua_index):
@@ -640,62 +799,259 @@ class BrowserTab(QWidget):
         self.dark_mode_manager = dark_mode_manager
         self.history_processor = history_processor
         self.parent_renderer = parent_renderer
-        self.layout = QVBoxLayout()
-        self.default_search_engine = "https://duckduckgo.com/?t=h_&q={query}&ia=web"
+        self.vpn_handler = None
+        self.current_url = ""
+        self.content_loaded = False
         self.last_content_path = None
         self.update_lock = QMutex()
         self.handling_input = False
-        self.content_loaded = False
+        self.default_search_engine = "https://duckduckgo.com/?t=h_&q={query}&ia=web"
+        self.bookmark_manager = None  # Will be set by CustomWebRenderer
 
-        self.url_layout = QHBoxLayout()
+        layout = QVBoxLayout()
+        nav_layout = QHBoxLayout()
 
-        self.back_button = QPushButton("◄")
-        self.back_button.setFixedSize(100, 100)
+        # Back button
+        self.back_button = QPushButton("←")
+        self.back_button.setFixedSize(30, 30)
         self.back_button.clicked.connect(self.go_back)
-        self.back_button.setObjectName("backButton")
-        self.url_layout.addWidget(self.back_button)
+        nav_layout.addWidget(self.back_button)
 
-        self.url_bar = QLineEdit()
-        self.url_bar.setPlaceholderText("Enter URL or search query")
-        self.url_bar.returnPressed.connect(self.handle_input)
-        self.url_bar.setMinimumHeight(int(QApplication.primaryScreen().availableGeometry().height() * 0.05))
-        self.url_layout.addWidget(self.url_bar)
-
+        # Reload button
         self.reload_button = QPushButton("↻")
-        self.reload_button.setFixedSize(100, 100)
-        self.reload_button.clicked.connect(self.handle_input)
-        self.reload_button.setObjectName("reloadButton")
-        self.url_layout.addWidget(self.reload_button)
+        self.reload_button.setFixedSize(30, 30)
+        self.reload_button.clicked.connect(self.reload_page)
+        nav_layout.addWidget(self.reload_button)
 
-        # Add background change button
-        if url == "about:start":
-            self.bg_button = QPushButton("🖼️")
-            self.bg_button.setFixedSize(100, 100)
-            self.bg_button.clicked.connect(self.change_background)
-            self.bg_button.setObjectName("bgButton")
-            self.bg_button.setToolTip("Change Background Image")
-            self.url_layout.addWidget(self.bg_button)
+        # URL bar
+        self.url_bar = QLineEdit()
+        self.url_bar.returnPressed.connect(self.handle_input)
+        nav_layout.addWidget(self.url_bar)
 
-        self.update_url_bar_style()
+        # Bookmark button
+        self.bookmark_button = QPushButton("🔖")
+        self.bookmark_button.setFixedSize(30, 30)
+        self.bookmark_button.setToolTip("Bookmark this page")
+        self.bookmark_button.clicked.connect(self.toggle_bookmark)
+        nav_layout.addWidget(self.bookmark_button)
 
-        self.layout.addLayout(self.url_layout)
+        # Bookmarks list button
+        self.bookmarks_list_button = QPushButton("📚")
+        self.bookmarks_list_button.setFixedSize(30, 30)
+        self.bookmarks_list_button.setToolTip("Show bookmarks")
+        self.bookmarks_list_button.clicked.connect(self.show_bookmarks)
+        nav_layout.addWidget(self.bookmarks_list_button)
 
+        layout.addLayout(nav_layout)
+
+        # Progress bar
+        self.progress = QProgressBar()
+        self.progress.setMaximumHeight(2)
+        self.progress.hide()
+        layout.addWidget(self.progress)
+
+        # Web view
         self.web_view = QWebEngineView()
-        self.web_view.setPage(CustomWebEnginePage(self))
-        self.web_view.loadFinished.connect(self.apply_dark_mode_to_content)
-        self.layout.addWidget(self.web_view, 1)
+        self.web_page = CustomWebEnginePage(self)
+        self.web_view.setPage(self.web_page)
+        layout.addWidget(self.web_view)
 
-        self.layout.setSpacing(10)
-        self.setLayout(self.layout)
+        self.setLayout(layout)
+        self.update_url_bar_style()
+        self.update_bookmark_button()
 
-        self.current_url = ""
         if url:
-            self.url_bar.setText(url)
-            self.handle_input()
+            self.navigate_to(url)
 
-    def change_background(self):
-        if self.parent_renderer:
-            self.parent_renderer.add_image(self)
+        self.servo_thread.phishing_detected.connect(self.show_phishing_warning)  # Connect to phishing signal
+
+    def toggle_bookmark(self):
+        """Add or remove the current page from bookmarks"""
+        if not self.current_url or self.current_url == "about:start":
+            return
+
+        if not self.bookmark_manager:
+            print("Error: bookmark_manager is not initialized")
+            return
+
+        try:
+            if self.bookmark_manager.is_bookmarked(self.current_url):
+                self.bookmark_manager.remove_bookmark(self.current_url)
+                QMessageBox.information(self, "Bookmark Removed", "Page has been removed from bookmarks")
+            else:
+                title = self.web_view.page().title() or urllib.parse.urlparse(self.current_url).netloc
+                title, ok = QInputDialog.getText(
+                    self, 
+                    "Add Bookmark",
+                    "Enter bookmark name:",
+                    text=title
+                )
+                if ok and title:
+                    self.bookmark_manager.add_bookmark(title, self.current_url)
+                    QMessageBox.information(self, "Bookmark Added", "Page has been added to bookmarks")
+
+            self.update_bookmark_button()
+        except Exception as e:
+            print(f"Error in toggle_bookmark: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to manage bookmark: {str(e)}")
+
+    def update_bookmark_button(self):
+        """Update bookmark button appearance based on current URL status"""
+        if self.current_url and self.bookmark_manager and self.bookmark_manager.is_bookmarked(self.current_url):
+            self.bookmark_button.setText("★")
+            self.bookmark_button.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    border: none;
+                    color: #FFD700;  /* Bright gold color */
+                    font-size: 20px;
+                    padding: 5px;
+                }
+                QPushButton:hover {
+                    color: #FFA500;  /* Orange on hover */
+                }
+            """)
+            self.bookmark_button.setToolTip("Remove bookmark")
+        else:
+            self.bookmark_button.setText("☆")
+            self.bookmark_button.setStyleSheet("""
+                QPushButton {
+                    background-color: transparent;
+                    border: none;
+                    color: #808080;  /* Gray color */
+                    font-size: 20px;
+                    padding: 5px;
+                }
+                QPushButton:hover {
+                    color: #FFD700;  /* Gold on hover */
+                }
+            """)
+            self.bookmark_button.setToolTip("Add bookmark")
+
+    def show_bookmarks(self):
+        """Show bookmarks manager window"""
+        if not self.bookmark_manager:
+            print("Error: bookmark_manager is not initialized")
+            return
+
+        try:
+            # Create and show the bookmark history manager window
+            self.bookmark_history_window = BookmarkHistoryManager()
+            self.bookmark_history_window.show()
+            
+        except Exception as e:
+            print(f"Error showing bookmarks: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to show bookmarks: {str(e)}")
+
+    def show_bookmark_manager(self):
+        """Show the bookmark manager dialog"""
+        if not self.bookmark_manager:
+            print("Error: bookmark_manager is not initialized")
+            return
+
+        try:
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Bookmark Manager")
+            dialog.setMinimumSize(500, 400)
+            
+            layout = QVBoxLayout()
+            
+            # Create list widget for bookmarks
+            list_widget = QListWidget()
+            list_widget.setAlternatingRowColors(True)
+            list_widget.setStyleSheet("""
+                QListWidget {
+                    background-color: #2d2d2d;
+                    border: 1px solid #424242;
+                }
+                QListWidget::item {
+                    padding: 10px;
+                    color: #e0e0e0;
+                }
+                QListWidget::item:alternate {
+                    background-color: #3d3d3d;
+                }
+                QListWidget::item:selected {
+                    background-color: #4a4a4a;
+                }
+            """)
+            
+            # Add bookmarks to list
+            bookmarks = self.bookmark_manager.get_bookmarks()
+            for title, url in bookmarks.items():
+                item = QListWidgetItem(f"{title}\n{url}")
+                item.setData(Qt.UserRole, (title, url))
+                list_widget.addItem(item)
+            
+            layout.addWidget(list_widget)
+            
+            # Add buttons
+            button_layout = QHBoxLayout()
+            
+            edit_button = QPushButton("Edit")
+            edit_button.clicked.connect(lambda: self.edit_bookmark(list_widget))
+            
+            delete_button = QPushButton("Delete")
+            delete_button.clicked.connect(lambda: self.delete_bookmark(list_widget))
+            
+            button_layout.addWidget(edit_button)
+            button_layout.addWidget(delete_button)
+            layout.addLayout(button_layout)
+            
+            dialog.setLayout(layout)
+            dialog.exec_()
+        except Exception as e:
+            print(f"Error showing bookmark manager: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to show bookmark manager: {str(e)}")
+
+    def edit_bookmark(self, list_widget):
+        """Edit the selected bookmark"""
+        try:
+            current_item = list_widget.currentItem()
+            if not current_item:
+                return
+                
+            title, url = current_item.data(Qt.UserRole)
+            new_title, ok = QInputDialog.getText(
+                self, 
+                "Edit Bookmark",
+                "Enter new title:",
+                text=title
+            )
+            
+            if ok and new_title:
+                self.bookmark_manager.remove_bookmark(url)
+                self.bookmark_manager.add_bookmark(new_title, url)
+                current_item.setText(f"{new_title}\n{url}")
+                current_item.setData(Qt.UserRole, (new_title, url))
+                self.update_bookmark_button()
+        except Exception as e:
+            print(f"Error editing bookmark: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to edit bookmark: {str(e)}")
+
+    def delete_bookmark(self, list_widget):
+        """Delete the selected bookmark"""
+        try:
+            current_item = list_widget.currentItem()
+            if not current_item:
+                return
+                
+            title, url = current_item.data(Qt.UserRole)
+            reply = QMessageBox.question(
+                self,
+                "Confirm Deletion",
+                f"Are you sure you want to delete the bookmark:\n{title}?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+            
+            if reply == QMessageBox.Yes:
+                self.bookmark_manager.remove_bookmark(url)
+                list_widget.takeItem(list_widget.row(current_item))
+                self.update_bookmark_button()
+        except Exception as e:
+            print(f"Error deleting bookmark: {e}")
+            QMessageBox.warning(self, "Error", f"Failed to delete bookmark: {str(e)}")
 
     def update_url_bar_style(self, dark_mode=False):
         if dark_mode:
@@ -711,10 +1067,9 @@ class BrowserTab(QWidget):
                 background-color: #2d2d2d;
                 color: #e0e0e0;
                 border: 1px solid #424242;
-                border-radius: 20px;
+                border-radius: 15px;
                 font-size: 18px;
             """
-            button_hover = "background-color: #3f3f3f;"
         else:
             style = """
                 padding: 8px; 
@@ -728,25 +1083,14 @@ class BrowserTab(QWidget):
                 background-color: #f5f5f5;
                 color: #333333;
                 border: 1px solid #d0d0d0;
-                border-radius: 20px;
+                border-radius: 15px;
                 font-size: 18px;
             """
-            button_hover = "background-color: #e0e0e0;"
 
         self.url_bar.setStyleSheet(style)
         
-        for button, name in [(self.back_button, "backButton"), 
-                           (self.reload_button, "reloadButton"),
-                           (getattr(self, 'bg_button', None), "bgButton")]:
-            if button:
-                button.setStyleSheet(f"""
-                    QPushButton#{name} {{
-                        {button_style}
-                    }}
-                    QPushButton#{name}:hover {{
-                        {button_hover}
-                    }}
-                """)
+        for button in [self.back_button, self.reload_button, self.bookmark_button, self.bookmarks_list_button]:
+            button.setStyleSheet(button_style)
 
     def apply_dark_mode_to_content(self, ok):
         if not self.update_lock.tryLock():
@@ -814,6 +1158,10 @@ class BrowserTab(QWidget):
                 print("Processing about:add-image")
                 self.parent_renderer.add_image(self)
                 return
+            elif input_text == "about:toggle-adblocker" and self.parent_renderer:
+                print("Processing about:toggle-adblocker")
+                self.parent_renderer.toggle_ad_blocker(self)
+                return
             elif input_text == "about:start":
                 print("Processing about:start")
                 self.current_url = input_text
@@ -838,6 +1186,12 @@ class BrowserTab(QWidget):
             else:
                 encoded_query = urllib.parse.quote(input_text)
                 url = self.default_search_engine.format(query=encoded_query)
+
+            # Check for phishing before loading the URL
+            result = self.servo_thread.phishing_detector.analyze_url(url)
+            if result["is_suspicious"]:
+                self.servo_thread.phishing_detected.emit(url, result)
+                return
 
             self.current_url = url
             self.url_bar.setText(url)
@@ -906,19 +1260,19 @@ class BrowserTab(QWidget):
                             body {{ 
                                 margin: 0; 
                                 padding: 0; 
-                                background-color: { "#212121" if self.servo_thread.dark_mode else "#fff" };
+                                background-color: {"#212121" if self.servo_thread.dark_mode else "#fff"};
                             }}
                             .info-bar {{ 
-                                background-color: { "#2d2d2d" if self.servo_thread.dark_mode else "#E8F5E9" };
+                                background-color: {"#2d2d2d" if self.servo_thread.dark_mode else "#E8F5E9"};
                                 padding: 0.5%; 
                                 font-size: 0.9em; 
-                                color: { "#e0e0e0" if self.servo_thread.dark_mode else "#333" }; 
+                                color: {"#e0e0e0" if self.servo_thread.dark_mode else "#333"}; 
                             }}
                             img {{ width: 100%; height: auto; border-radius: 8px; }}
                         </style>
                     </head>
                     <body>
-                        <img src="file:///{content_path.replace('\\', '/')}" />
+                        <img src="file:///{content_path.replace(chr(92), '/')}" />
                         <div class="info-bar">
                             <p>Viewing: {self.current_url}</p>
                         </div>
@@ -966,6 +1320,107 @@ class BrowserTab(QWidget):
                 return None
         return None
 
+    def navigate_to(self, url):
+        """Navigate to a specific URL"""
+        if url:
+            self.url_bar.setText(url)
+            self.handle_input()
+
+    def show_phishing_warning(self, url, result):
+        """Show a warning if a phishing attempt is detected."""
+        if result["is_suspicious"]:
+            warning_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>⚠️ Phishing Warning</title>
+                <style>
+                    body {{ 
+                        font-family: Arial, sans-serif; 
+                        text-align: center; 
+                        padding: 2%; 
+                        font-size: 1.2em; 
+                        background-color: { "#212121" if self.dark_mode_manager.is_dark_mode() else "#fff" }; 
+                        color: { "#e0e0e0" if self.dark_mode_manager.is_dark_mode() else "#333" }; 
+                    }}
+                    .warning-container {{
+                        background-color: { "#2d2d2d" if self.dark_mode_manager.is_dark_mode() else "#fff3f3" };
+                        border: 4px solid #ff6b6b;
+                        border-radius: 10px;
+                        padding: 20px;
+                        margin: 50px auto;
+                        max-width: 600px;
+                    }}
+                    .warning-icon {{
+                        font-size: 48px;
+                        margin-bottom: 20px;
+                    }}
+                    .reasons {{
+                        text-align: left;
+                        margin: 20px auto;
+                        max-width: 500px;
+                    }}
+                    .reason-item {{
+                        margin: 10px 0;
+                        padding: 10px;
+                        background-color: { "#3d3d3d" if self.dark_mode_manager.is_dark_mode() else "#ffe6e6" };
+                        border-radius: 5px;
+                    }}
+                    .proceed-button {{
+                        background-color: #ff6b6b;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin: 10px;
+                        font-size: 16px;
+                    }}
+                    .back-button {{
+                        background-color: #4CAF50;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 5px;
+                        cursor: pointer;
+                        margin: 10px;
+                        font-size: 16px;
+                    }}
+                </style>
+                <script>
+                    function proceedAnyway() {{
+                        window.location.href = "{url}";
+                    }}
+                    function goBack() {{
+                        window.history.back();
+                    }}
+                </script>
+            </head>
+            <body>
+                <div class="warning-container">
+                    <div class="warning-icon">⚠️</div>
+                    <h2>Potential Phishing Attempt Detected</h2>
+                    <p>This website might be trying to steal your information.</p>
+                    <p>Risk Score: {result["score"]}/100</p>
+                    <div class="reasons">
+                        <h3>Reasons:</h3>
+                        {"".join(f'<div class="reason-item">• {reason}</div>' for reason in result["reasons"])}
+                    </div>
+                    <button class="back-button" onclick="goBack()">Go Back (Recommended)</button>
+                    <button class="proceed-button" onclick="proceedAnyway()">Proceed Anyway (Unsafe)</button>
+                </div>
+            </body>
+            </html>
+            """
+            self.web_view.setHtml(warning_html)
+            self.browser_layout.get_tabs().setTabText(self.browser_layout.get_tabs().currentIndex(), "⚠️ Warning")
+
+    def reload_page(self):
+        """Reload the current page"""
+        if self.current_url:
+            self.handle_input()
+
 class CustomWebRenderer(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -974,210 +1429,110 @@ class CustomWebRenderer(QMainWindow):
         # Initialize main application window
         screen = QApplication.primaryScreen()
         screen_size = screen.availableGeometry()
-        width = int(screen_size.width() * 1.00)
-        height = int(screen_size.height() * 1.00)
+        width = int(screen_size.width() * 0.8)
+        height = int(screen_size.height() * 0.8)
         self.resize(width, height)
         self.move(int((screen_size.width() - width) / 2), int((screen_size.height() - height) / 2))
-        self.setMinimumSize(int(screen_size.width() * 0.5), int(screen_size.height() * 0.5))
+        self.setMinimumSize(800, 600)
 
         self.tab_counter = 0
         self.tabs_dict = {}
         self.current_search_engine = "https://duckduckgo.com/?t=h_&q={query}&ia=web"
+        self.ad_blocker_enabled = True
+        self.phishing_detection_enabled = True
         
         self.history_processor = BrowserHistoryProcessor("./browser_data/history.json")
+        self.bookmark_manager = BookmarkManager()  # Fixed initialization
         
+        # Initialize components
         self.servo_thread = ServoThread(self)
         self.servo_thread.content_ready.connect(self.update_tab_content)
         self.servo_thread.loading_started.connect(self.show_loading)
         self.servo_thread.loading_finished.connect(self.hide_loading)
 
+        # Create new tab button
         self.new_tab_button = QToolButton()
+        self.new_tab_button.setText("+")
+        self.new_tab_button.setToolTip("New Tab")
+
+        # Initialize ad blocker state (without visible button)
+        self.ad_blocker_enabled = True
+        self.servo_thread.ad_blocker_enabled = True
+        
+        # Initialize dark mode manager
         self.dark_mode_manager = DarkModeManager(self, self.servo_thread, self.tabs_dict, None, self.new_tab_button)
         self.servo_thread.dark_mode_manager = self.dark_mode_manager
 
+        # Create browser layout
         self.browser_layout = BrowserLayout(self, self.dark_mode_manager, self.servo_thread, self.tabs_dict, self.new_tab_button)
         self.setCentralWidget(self.browser_layout)
 
+        # Update dark mode manager with tabs reference
         self.dark_mode_manager.tabs = self.browser_layout.get_tabs()
         
+        # Start servo thread
         self.servo_thread.start()
 
-        # Initialize shortcuts and default background image
+        # Load shortcuts and create initial tab
         self.shortcuts_file = "./browser_data/shortcuts.json"
         self.shortcuts = []
         self.background_image = None
         self.load_shortcuts()
-        
         self.add_starting_screen()
         
         self.force_fallback = True
         self.servo_thread.set_force_fallback(self.force_fallback)
 
+        # Create menu bar
         self.create_menu()
     
-    def load_shortcuts(self):
-        default_shortcuts = [
-            {"title": "Acko", "url": "https://www.acko.com", "icon": "A"},
-            {"title": "Play Games", "url": "https://www.playgames.com", "icon": "🎮"},
-            {"title": "Policybazaar", "url": "https://www.policybazaar.com", "icon": "P"},
-            {"title": "Home Loans", "url": "https://www.homeloans.com", "icon": "🏠"},
-            {"title": "Booking.com", "url": "https://www.booking.com", "icon": "B"},
-            {"title": "Airbnb", "url": "https://www.airbnb.com", "icon": "A"},
-            {"title": "Agoda", "url": "https://www.agoda.com", "icon": "A"},
-            {"title": "World of Warships", "url": "https://www.worldofwarships.com", "icon": "W"},
-            {"title": "Trip.com", "url": "https://www.trip.com", "icon": "T"},
-            {"title": "Hotels Combined", "url": "https://www.hotelscombined.com", "icon": "H"}
-        ]
+    def toggle_ad_blocker_from_toolbar(self):
+        """Handle ad blocker toggle"""
+        self.ad_blocker_enabled = not self.ad_blocker_enabled
+        self.servo_thread.ad_blocker_enabled = self.ad_blocker_enabled
         
-        # Set the default background image path to the new image
-        local_image_path = os.path.join(os.getcwd(), "images", "img.jpg")
-        fallback_url = "https://via.placeholder.com/800x400"
-        
-        print(f"Current working directory: {os.getcwd()}")
-        print(f"Looking for image at: {local_image_path}")
-        print(f"Does file exist? {os.path.exists(local_image_path)}")
-        
-        if os.path.exists(local_image_path):
-            print("Background image found")
-            try:
-                file_url = QUrl.fromLocalFile(local_image_path).toString()
-                print(f"Converted to file URL: {file_url}")
-                self.background_image = file_url
-            except Exception as e:
-                print(f"Error converting to file URL: {e}")
-                self.background_image = fallback_url
-        else:
-            print(f"Background image not found at {local_image_path}, using fallback")
-            self.background_image = fallback_url
-        
-        try:
-            if not os.path.exists(self.shortcuts_file):
-                print("Creating new shortcuts file")
-                os.makedirs(os.path.dirname(self.shortcuts_file), exist_ok=True)
-                with open(self.shortcuts_file, 'w') as f:
-                    json.dump({
-                        "shortcuts": default_shortcuts,
-                        "background_image": self.background_image
-                    }, f, indent=2)
-                self.shortcuts = default_shortcuts
-            else:
-                print("Loading existing shortcuts file")
-                with open(self.shortcuts_file, 'r') as f:
-                    data = json.load(f)
-                    self.shortcuts = data.get("shortcuts", default_shortcuts)
-                    # Always use the current background image setting
-                    data["background_image"] = self.background_image
-                    with open(self.shortcuts_file, 'w') as f:
-                        json.dump(data, f, indent=2)
-        except Exception as e:
-            print(f"Error loading shortcuts: {e}")
-            self.shortcuts = default_shortcuts
-
-    def save_shortcuts(self):
-        try:
-            with open(self.shortcuts_file, 'w') as f:
-                json.dump({
-                    "shortcuts": self.shortcuts,
-                    "background_image": self.background_image
-                }, f, indent=2)
-            print("Shortcuts and background image saved successfully")
-        except Exception as e:
-            print(f"Error saving shortcuts: {e}")
-
-    def add_shortcut(self, tab):
-        print("add_shortcut called")
-        url, ok = QInputDialog.getText(self, "Add Shortcut", "Enter URL (e.g., https://example.com):")
-        if ok and url.strip():
-            if not url.startswith(('http://', 'https://')):
-                url = "https://" + url
-            title, ok = QInputDialog.getText(self, "Add Shortcut", "Enter title for the shortcut:")
-            if ok and title.strip():
-                icon, ok = QInputDialog.getText(self, "Add Shortcut", "Enter icon (e.g., letter or emoji):", text="S")
-                if ok and icon.strip():
-                    self.shortcuts.append({"title": title, "url": url, "icon": icon})
-                    self.save_shortcuts()
-                    print(f"New shortcut added: {title}, {url}, {icon}")
-                    if tab.current_url == "about:start":
-                        print("Updating start page with new shortcut")
-                        self.update_starting_screen(tab)
-                        tab.url_bar.setText("about:start")
-                    else:
-                        print("Current tab is not about:start, no update performed")
-                else:
-                    print("Icon input cancelled or empty")
-            else:
-                print("URL input cancelled or empty")
-
-    def add_image(self, tab):
-        print("add_image called")
-        try:
-            # Open file dialog with simple configuration
-            image_path, _ = QFileDialog.getOpenFileName(
-                parent=self,
-                caption="Select Background Image",
-                directory=os.path.expanduser("~"),
-                filter="Image Files (*.jpg *.jpeg *.png *.gif *.bmp);;All Files (*)"
-            )
-            
-            if not image_path:
-                print("No image selected")
-                return
-                
-            print(f"Selected file path: {image_path}")
-            
-            # Verify the file exists
-            if not os.path.exists(image_path):
-                raise Exception("Selected file does not exist")
-            
-            # Create images directory if it doesn't exist
-            images_dir = os.path.join(os.getcwd(), "images")
-            os.makedirs(images_dir, exist_ok=True)
-            
-            # Copy the selected image to the images directory
-            import shutil
-            new_image_path = os.path.join(images_dir, "img.jpg")
-            shutil.copy2(image_path, new_image_path)
-            print(f"Copied image to: {new_image_path}")
-            
-            # Convert to file URL
-            file_url = QUrl.fromLocalFile(new_image_path).toString()
-            print(f"Converted to file URL: {file_url}")
-            
-            # Update the background image
-            self.background_image = file_url
-            
-            # Save the changes
-            self.save_shortcuts()
-            print(f"Updated background image to: {self.background_image}")
-            
-            # Force refresh all tabs showing the start page
-            for tab_id, tab in self.tabs_dict.items():
-                if hasattr(tab, 'current_url') and tab.current_url == "about:start":
-                    print(f"Refreshing start page for tab: {tab_id}")
-                    # Generate new HTML content
-                    temp_html = self.generate_starting_screen_html()
-                    if temp_html:
-                        # Force a complete reload
-                        tab.web_view.setHtml("")  # Clear current content
-                        tab.update_content(temp_html)
-                        tab.url_bar.setText("about:start")
-            
-            # Show success message
-            QMessageBox.information(
-                self,
-                "Success",
-                f"Background image updated successfully!\nFile: {os.path.basename(image_path)}",
-                QMessageBox.Ok
-            )
-        
-        except Exception as e:
-            print(f"Error setting background image: {e}")
-            QMessageBox.critical(
-                self,
-                "Error",
-                f"Failed to set background image:\n{str(e)}",
-                QMessageBox.Ok
-            )
+        # Show notification in current tab
+        current_tab = self.browser_layout.get_tabs().currentWidget()
+        if current_tab:
+            notification_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Ad Blocker Status</title>
+                <style>
+                    body {{ 
+                        font-family: Arial, sans-serif; 
+                        text-align: center; 
+                        padding: 2%; 
+                        font-size: 1.2em; 
+                        background-color: { "#212121" if self.dark_mode_manager.is_dark_mode() else "#fff" }; 
+                        color: { "#e0e0e0" if self.dark_mode_manager.is_dark_mode() else "#333" }; 
+                    }}
+                    .notification {{
+                        background-color: { "#2d2d2d" if self.dark_mode_manager.is_dark_mode() else "#f0f8ff" };
+                        padding: 20px;
+                        border-radius: 10px;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        margin: 100px auto;
+                        max-width: 500px;
+                    }}
+                </style>
+                <script>
+                    setTimeout(function() {{
+                        window.history.back();
+                    }}, 2000);
+                </script>
+            </head>
+            <body>
+                <div class="notification">
+                    <h2>Ad Blocker Status Changed</h2>
+                    <p>Ad blocker is now <strong>{'enabled' if self.ad_blocker_enabled else 'disabled'}</strong></p>
+                </div>
+            </body>
+            </html>
+            """
+            current_tab.web_view.setHtml(notification_html)
 
     def generate_starting_screen_html(self):
         dark_mode = self.dark_mode_manager.is_dark_mode()
@@ -1348,6 +1703,7 @@ class CustomWebRenderer(QMainWindow):
         self.tab_counter += 1
         tab_id = f"tab_{self.tab_counter}"
         new_tab = BrowserTab(self.servo_thread, tab_id, "about:start", self.dark_mode_manager, self.history_processor, self)
+        new_tab.bookmark_manager = self.bookmark_manager  # Set bookmark manager for initial tab
         new_tab.default_search_engine = self.current_search_engine
         new_tab.current_url = "about:start"
         
@@ -1377,6 +1733,25 @@ class CustomWebRenderer(QMainWindow):
 
     def create_menu(self):
         menu_bar = self.menuBar()
+        
+        # Add Security menu
+        security_menu = menu_bar.addMenu("Security")
+        
+        # Add Phishing Detection toggle action
+        phishing_action = QAction("Phishing Detection", self)
+        phishing_action.setCheckable(True)
+        phishing_action.setChecked(self.phishing_detection_enabled)
+        phishing_action.triggered.connect(self.toggle_phishing_detection)
+        security_menu.addAction(phishing_action)
+        
+        # Add Ad Blocker toggle action
+        adblock_action = QAction("Ad Blocker", self)
+        adblock_action.setCheckable(True)
+        adblock_action.setChecked(self.ad_blocker_enabled)
+        adblock_action.triggered.connect(self.toggle_ad_blocker)
+        security_menu.addAction(adblock_action)
+        
+        # Rest of the existing menu items...
         file_menu = menu_bar.addMenu("File")
         new_tab_action = QAction("New Tab", self)
         new_tab_action.setShortcut("Ctrl+T")
@@ -1408,6 +1783,12 @@ class CustomWebRenderer(QMainWindow):
         force_fallback_action.setChecked(self.force_fallback)
         force_fallback_action.triggered.connect(self.toggle_force_fallback)
         render_menu.addAction(force_fallback_action)
+        
+        # Add ad blocker menu
+        adblock_menu = menu_bar.addMenu("Ad Blocker")
+        update_filters_action = QAction("Update Filter Lists", self)
+        update_filters_action.triggered.connect(self.update_adblock_filters)
+        adblock_menu.addAction(update_filters_action)
         
         ua_menu = menu_bar.addMenu("User Agent")
         chrome_action = QAction("Chrome", self)
@@ -1527,6 +1908,7 @@ class CustomWebRenderer(QMainWindow):
         self.tab_counter += 1
         tab_id = f"tab_{self.tab_counter}"
         new_tab = BrowserTab(self.servo_thread, tab_id, url, self.dark_mode_manager, self.history_processor, self)
+        new_tab.bookmark_manager = self.bookmark_manager  # Use the global bookmark manager
         new_tab.default_search_engine = self.current_search_engine
         tab_title = "New Tab"
         self.browser_layout.add_tab(new_tab, tab_title)
@@ -1578,6 +1960,437 @@ class CustomWebRenderer(QMainWindow):
             self.servo_thread.terminate()
             self.servo_thread.wait(5000)
         event.accept()
+
+    def toggle_proxy(self):
+        """Launch VPN client in a new terminal window"""
+        try:
+            vpn_script = os.path.join(os.getcwd(), "test_vpn.py")
+            if os.name == 'nt':  # For Windows
+                subprocess.Popen(
+                    ['start', 'cmd', '/k', 'python', vpn_script],
+                    shell=True,
+                    creationflags=subprocess.CREATE_NEW_CONSOLE
+                )
+            else:  # For Unix-like systems
+                terminals = [
+                    ['x-terminal-emulator', '-e'],
+                    ['gnome-terminal', '--'],
+                    ['konsole', '-e'],
+                    ['xterm', '-e']
+                ]
+                for terminal in terminals:
+                    try:
+                        subprocess.Popen(terminal + ['python', vpn_script])
+                        break
+                    except FileNotFoundError:
+                        continue
+            
+            # Update button state
+            if hasattr(self, 'proxy_button'):
+                if "Enable" in self.proxy_button.text():
+                    self.proxy_button.setText("Disable Proxy")
+                    self.proxy_button.setStyleSheet("""
+                        QPushButton {
+                            background-color: #f44336;
+                            color: white;
+                            border: none;
+                            padding: 8px 16px;
+                            border-radius: 4px;
+                        }
+                        QPushButton:hover {
+                            background-color: #da190b;
+                        }
+                    """)
+                else:
+                    self.proxy_button.setText("Enable Proxy")
+                    self.proxy_button.setStyleSheet("""
+                        QPushButton {
+                            background-color: #4CAF50;
+                            color: white;
+                            border: none;
+                            padding: 8px 16px;
+                            border-radius: 4px;
+                        }
+                        QPushButton:hover {
+                            background-color: #45a049;
+                        }
+                    """)
+        except Exception as e:
+            print(f"Error launching VPN client: {str(e)}")
+
+    def update_adblock_filters(self):
+        try:
+            self.servo_thread.ad_blocker.load_filters()
+            QMessageBox.information(self, "Success", "Ad blocker filter lists updated successfully!")
+            self.reload_current_page()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to update ad blocker filters: {str(e)}")
+
+    def toggle_ad_blocker(self, tab):
+        """Toggle ad blocker state and update UI"""
+        self.ad_blocker_enabled = not self.ad_blocker_enabled
+        print(f"Ad blocker {'enabled' if self.ad_blocker_enabled else 'disabled'}")
+        
+        # Update the start page if we're on it
+        if tab.current_url == "about:start":
+            self.update_starting_screen(tab)
+        else:
+            # Show notification about the change
+            notification_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Ad Blocker Status</title>
+                <style>
+                    body {{ 
+                        font-family: Arial, sans-serif; 
+                        text-align: center; 
+                        padding: 2%; 
+                        font-size: 1.2em; 
+                        background-color: { "#212121" if self.dark_mode_manager.is_dark_mode() else "#fff" }; 
+                        color: { "#e0e0e0" if self.dark_mode_manager.is_dark_mode() else "#333" }; 
+                    }}
+                    .notification {{
+                        background-color: { "#2d2d2d" if self.dark_mode_manager.is_dark_mode() else "#f0f8ff" };
+                        padding: 20px;
+                        border-radius: 10px;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        margin: 100px auto;
+                        max-width: 500px;
+                    }}
+                </style>
+                <script>
+                    setTimeout(function() {{
+                        window.history.back();
+                    }}, 2000);
+                </script>
+            </head>
+            <body>
+                <div class="notification">
+                    <h2>Ad Blocker Status Changed</h2>
+                    <p>Ad blocker is now <strong>{'enabled' if self.ad_blocker_enabled else 'disabled'}</strong></p>
+                </div>
+            </body>
+            </html>
+            """
+            tab.web_view.setHtml(notification_html)
+            self.browser_layout.get_tabs().setTabText(self.browser_layout.get_tabs().currentIndex(), "Notification")
+        
+        # Update the ad blocker state in the ServoThread
+        self.servo_thread.ad_blocker_enabled = self.ad_blocker_enabled
+
+    def load_shortcuts(self):
+        default_shortcuts = [
+            {"title": "Acko", "url": "https://www.acko.com", "icon": "A"},
+            {"title": "Play Games", "url": "https://www.playgames.com", "icon": "🎮"},
+            {"title": "Policybazaar", "url": "https://www.policybazaar.com", "icon": "P"},
+            {"title": "Home Loans", "url": "https://www.homeloans.com", "icon": "🏠"},
+            {"title": "Booking.com", "url": "https://www.booking.com", "icon": "B"},
+            {"title": "Airbnb", "url": "https://www.airbnb.com", "icon": "A"},
+            {"title": "Agoda", "url": "https://www.agoda.com", "icon": "A"},
+            {"title": "World of Warships", "url": "https://www.worldofwarships.com", "icon": "W"},
+            {"title": "Trip.com", "url": "https://www.trip.com", "icon": "T"},
+            {"title": "Hotels Combined", "url": "https://www.hotelscombined.com", "icon": "H"}
+        ]
+        
+        # Set the default background image path to the new image
+        local_image_path = os.path.join(os.getcwd(), "images", "img.jpg")
+        fallback_url = "https://via.placeholder.com/800x400"
+        
+        print(f"Current working directory: {os.getcwd()}")
+        print(f"Looking for image at: {local_image_path}")
+        print(f"Does file exist? {os.path.exists(local_image_path)}")
+        
+        if os.path.exists(local_image_path):
+            print("Background image found")
+            try:
+                file_url = QUrl.fromLocalFile(local_image_path).toString()
+                print(f"Converted to file URL: {file_url}")
+                self.background_image = file_url
+            except Exception as e:
+                print(f"Error converting to file URL: {e}")
+                self.background_image = fallback_url
+        else:
+            print(f"Background image not found at {local_image_path}, using fallback")
+            self.background_image = fallback_url
+        
+        try:
+            if not os.path.exists(self.shortcuts_file):
+                print("Creating new shortcuts file")
+                os.makedirs(os.path.dirname(self.shortcuts_file), exist_ok=True)
+                with open(self.shortcuts_file, 'w') as f:
+                    json.dump({
+                        "shortcuts": default_shortcuts,
+                        "background_image": self.background_image
+                    }, f, indent=2)
+                self.shortcuts = default_shortcuts
+            else:
+                print("Loading existing shortcuts file")
+                with open(self.shortcuts_file, 'r') as f:
+                    data = json.load(f)
+                    self.shortcuts = data.get("shortcuts", default_shortcuts)
+                    # Always use the current background image setting
+                    data["background_image"] = self.background_image
+                    with open(self.shortcuts_file, 'w') as f:
+                        json.dump(data, f, indent=2)
+        except Exception as e:
+            print(f"Error loading shortcuts: {e}")
+            self.shortcuts = default_shortcuts
+
+    def save_shortcuts(self):
+        try:
+            with open(self.shortcuts_file, 'w') as f:
+                json.dump({
+                    "shortcuts": self.shortcuts,
+                    "background_image": self.background_image
+                }, f, indent=2)
+            print("Shortcuts and background image saved successfully")
+        except Exception as e:
+            print(f"Error saving shortcuts: {e}")
+
+    def add_shortcut(self, tab):
+        print("add_shortcut called")
+        url, ok = QInputDialog.getText(self, "Add Shortcut", "Enter URL (e.g., https://example.com):")
+        if ok and url.strip():
+            if not url.startswith(('http://', 'https://')):
+                url = "https://" + url
+            title, ok = QInputDialog.getText(self, "Add Shortcut", "Enter title for the shortcut:")
+            if ok and title.strip():
+                icon, ok = QInputDialog.getText(self, "Add Shortcut", "Enter icon (e.g., letter or emoji):", text="S")
+                if ok and icon.strip():
+                    self.shortcuts.append({"title": title, "url": url, "icon": icon})
+                    self.save_shortcuts()
+                    print(f"New shortcut added: {title}, {url}, {icon}")
+                    if tab.current_url == "about:start":
+                        print("Updating start page with new shortcut")
+                        self.update_starting_screen(tab)
+                        tab.url_bar.setText("about:start")
+                    else:
+                        print("Current tab is not about:start, no update performed")
+                else:
+                    print("Icon input cancelled or empty")
+            else:
+                print("URL input cancelled or empty")
+
+    def add_image(self, tab):
+        print("add_image called")
+        try:
+            # Open file dialog with simple configuration
+            image_path, _ = QFileDialog.getOpenFileName(
+                parent=self,
+                caption="Select Background Image",
+                directory=os.path.expanduser("~"),
+                filter="Image Files (*.jpg *.jpeg *.png *.gif *.bmp);;All Files (*)"
+            )
+            
+            if not image_path:
+                print("No image selected")
+                return
+                
+            print(f"Selected file path: {image_path}")
+            
+            # Verify the file exists
+            if not os.path.exists(image_path):
+                raise Exception("Selected file does not exist")
+            
+            # Create images directory if it doesn't exist
+            images_dir = os.path.join(os.getcwd(), "images")
+            os.makedirs(images_dir, exist_ok=True)
+            
+            # Copy the selected image to the images directory
+            import shutil
+            new_image_path = os.path.join(images_dir, "img.jpg")
+            shutil.copy2(image_path, new_image_path)
+            print(f"Copied image to: {new_image_path}")
+            
+            # Convert to file URL
+            file_url = QUrl.fromLocalFile(new_image_path).toString()
+            print(f"Converted to file URL: {file_url}")
+            
+            # Update the background image
+            self.background_image = file_url
+            
+            # Save the changes
+            self.save_shortcuts()
+            print(f"Updated background image to: {self.background_image}")
+            
+            # Force refresh all tabs showing the start page
+            for tab_id, tab in self.tabs_dict.items():
+                if hasattr(tab, 'current_url') and tab.current_url == "about:start":
+                    print(f"Refreshing start page for tab: {tab_id}")
+                    # Generate new HTML content
+                    temp_html = self.generate_starting_screen_html()
+                    if temp_html:
+                        # Force a complete reload
+                        tab.web_view.setHtml("")  # Clear current content
+                        tab.update_content(temp_html)
+                        tab.url_bar.setText("about:start")
+            
+            # Show success message
+            QMessageBox.information(
+                self,
+                "Success",
+                f"Background image updated successfully!\nFile: {os.path.basename(image_path)}",
+                QMessageBox.Ok
+            )
+        
+        except Exception as e:
+            print(f"Error setting background image: {e}")
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to set background image:\n{str(e)}",
+                QMessageBox.Ok
+            )
+
+    def toggle_dark_mode(self):
+        """Toggle dark mode on/off"""
+        if hasattr(self, 'dark_mode_manager') and self.dark_mode_manager:
+            self.dark_mode_manager.toggle_dark_mode()
+            # Update the dark mode button text
+            if hasattr(self, 'dark_mode_btn'):
+                self.dark_mode_btn.setText(f"Dark Mode: {'On' if self.dark_mode_manager.is_dark_mode() else 'Off'}")
+                self.dark_mode_btn.setChecked(self.dark_mode_manager.is_dark_mode())
+
+    def toggle_phishing_detection(self):
+        """Toggle phishing detection and update UI"""
+        self.phishing_detection_enabled = not self.phishing_detection_enabled
+        print(f"Phishing detection {'enabled' if self.phishing_detection_enabled else 'disabled'}")
+        
+        # Show notification in current tab
+        current_tab = self.browser_layout.get_tabs().currentWidget()
+        if current_tab:
+            notification_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Phishing Detection Status</title>
+                <style>
+                    body {{ 
+                        font-family: Arial, sans-serif; 
+                        text-align: center; 
+                        padding: 2%; 
+                        font-size: 1.2em; 
+                        background-color: { "#212121" if self.dark_mode_manager.is_dark_mode() else "#fff" }; 
+                        color: { "#e0e0e0" if self.dark_mode_manager.is_dark_mode() else "#333" }; 
+                    }}
+                    .notification {{
+                        background-color: { "#2d2d2d" if self.dark_mode_manager.is_dark_mode() else "#f0f8ff" };
+                        padding: 20px;
+                        border-radius: 10px;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        margin: 100px auto;
+                        max-width: 500px;
+                    }}
+                    .status-icon {{
+                        font-size: 48px;
+                        margin-bottom: 20px;
+                    }}
+                </style>
+                <script>
+                    setTimeout(function() {{
+                        window.history.back();
+                    }}, 2000);
+                </script>
+            </head>
+            <body>
+                <div class="notification">
+                    <div class="status-icon">{'🛡️' if self.phishing_detection_enabled else '🚫'}</div>
+                    <h2>Phishing Detection {self.phishing_detection_enabled and 'Enabled' or 'Disabled'}</h2>
+                    <p>{'Protecting you from suspicious websites' if self.phishing_detection_enabled else 'Protection is turned off'}</p>
+                </div>
+            </body>
+            </html>
+            """
+            current_tab.web_view.setHtml(notification_html)
+            self.browser_layout.get_tabs().setTabText(
+                self.browser_layout.get_tabs().currentIndex(),
+                "Notification"
+            )
+
+    def handle_input(self):
+        if self.handling_input:
+            print("Recursive handle_input call detected, skipping")
+            return
+        
+        self.handling_input = True
+        try:
+            input_text = self.url_bar.text().strip()
+            
+            # Skip if input is empty or unchanged
+            if not input_text or (input_text == self.current_url and self.content_loaded):
+                print("Skipping input - empty or unchanged")
+                return
+
+            # Special handling for about: pages
+            if input_text.startswith("about:"):
+                if input_text == self.current_url and self.content_loaded:
+                    print("Skipping reload of about: page")
+                    return
+                    
+            if input_text == "about:add-shortcut" and self.parent_renderer:
+                print("Processing about:add-shortcut")
+                self.parent_renderer.add_shortcut(self)
+                return
+            elif input_text == "about:add-image" and self.parent_renderer:
+                print("Processing about:add-image")
+                self.parent_renderer.add_image(self)
+                return
+            elif input_text == "about:toggle-adblocker" and self.parent_renderer:
+                print("Processing about:toggle-adblocker")
+                self.parent_renderer.toggle_ad_blocker(self)
+                return
+            elif input_text == "about:start":
+                print("Processing about:start")
+                self.current_url = input_text
+                self.url_bar.setText(input_text)
+                if self.parent_renderer:
+                    temp_html = self.parent_renderer.generate_starting_screen_html()
+                    self.update_content(temp_html)
+                return
+            
+            if self.is_url(input_text):
+                if input_text.startswith('http://'):
+                    url = 'https://' + input_text[7:]
+                elif not input_text.startswith('https://'):
+                    common_sites = ['google', 'facebook', 'youtube', 'amazon', 'wikipedia', 'twitter', 'instagram']
+                    input_lower = input_text.lower()
+                    if any(site == input_lower for site in common_sites):
+                        url = f"https://www.{input_text}.com"
+                    else:
+                        url = "https://" + input_text
+                else:
+                    url = input_text
+            else:
+                encoded_query = urllib.parse.quote(input_text)
+                url = self.default_search_engine.format(query=encoded_query)
+
+            # Check for phishing only if enabled
+            if self.phishing_detection_enabled:
+                result = self.servo_thread.phishing_detector.analyze_url(url)
+                if result["is_suspicious"]:
+                    self.servo_thread.phishing_detected.emit(url, result)
+                    return
+
+            self.current_url = url
+            self.url_bar.setText(url)
+            self.last_content_path = None
+
+            if self.history_processor and url and url != "about:start":
+                title = urllib.parse.urlparse(url).netloc or "New Tab"
+                self.history_processor.record_visit(url, title)
+
+            old_fallback = self.servo_thread.force_fallback
+            self.servo_thread.set_force_fallback(True)
+            self.servo_thread.add_url_to_queue(url, self.tab_id)
+            self.servo_thread.set_force_fallback(old_fallback)
+        except Exception as e:
+            print(f"Error handling input: {e}")
+        finally:
+            self.handling_input = False
+            print("Finished handling input")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
