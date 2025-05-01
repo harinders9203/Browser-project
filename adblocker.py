@@ -45,6 +45,11 @@ class AdBlocker:
             'tremorhub.com', 'triplelift.com', 'trustarc.com', 'twiago.com',
             'tynt.com', 'undertone.com', 'vidible.tv', 'visualwebsiteoptimizer.com',
             'vmweb.net', 'zeotap.com', 'zemanta.com', 'zorosrv.com',
+            # Add specific ad domains for hianime.tv
+            'hianime.tv.ads', 'ads.hianime.tv', 'analytics.hianime.tv',
+            'tracker.hianime.tv', 'stats.hianime.tv', 'pixel.hianime.tv',
+            'metrics.hianime.tv', 'counter.hianime.tv', 'log.hianime.tv',
+            'track.hianime.tv', 'analytics.hianime.to', 'ads.hianime.to',
             'push-notification', 'browser-notification', 'notify', 'alert-system',
             'notification-center', 'push-service', 'brave-notification',
             'chrome-alert', 'firefox-alert', 'edge-alert', 'safari-alert',
@@ -211,7 +216,47 @@ class AdBlocker:
             '[class*="hianime"]', '[id*="hianime"]',
             '[class*="push-notifications"]', '[id*="push-notifications"]',  # New selectors
             '[class*="chrome-mobile"]', '[id*="chrome-mobile"]',
-            '[class*="learn-more"]', '[id*="learn-more"]'
+            '[class*="learn-more"]', '[id*="learn-more"]',
+            # Add specific selectors for hianime.tv
+            '[class*="hianime-ad"]',
+            '[id*="hianime-ad"]',
+            '[class*="hianime-popup"]',
+            '[id*="hianime-popup"]',
+            '[class*="hianime-overlay"]',
+            '[id*="hianime-overlay"]',
+            '[class*="hianime-modal"]',
+            '[id*="hianime-modal"]',
+            '[class*="hianime-float"]',
+            '[id*="hianime-float"]',
+            '[class*="hianime-sticky"]',
+            '[id*="hianime-sticky"]',
+            '[class*="hianime-banner"]',
+            '[id*="hianime-banner"]',
+            '[class*="hianime-promo"]',
+            '[id*="hianime-promo"]',
+            '[class*="hianime-sponsor"]',
+            '[id*="hianime-sponsor"]',
+            '[class*="hianime-social"]',
+            '[id*="hianime-social"]',
+            '[class*="hianime-newsletter"]',
+            '[id*="hianime-newsletter"]',
+            '[class*="hianime-subscribe"]',
+            '[id*="hianime-subscribe"]',
+            # Add specific iframe selectors
+            'iframe[src*="ads"]',
+            'iframe[src*="banner"]',
+            'iframe[src*="popup"]',
+            'iframe[src*="overlay"]',
+            'iframe[src*="promo"]',
+            'iframe[src*="sponsor"]',
+            'iframe[src*="analytics"]',
+            'iframe[src*="tracker"]',
+            'iframe[src*="pixel"]',
+            'iframe[src*="counter"]',
+            'iframe[src*="stats"]',
+            'iframe[src*="metrics"]',
+            'iframe[src*="log"]',
+            'iframe[src*="track"]'
         }
         
         self.load_filters()
@@ -676,19 +721,25 @@ class AdBlocker:
                 [class*="dialog"], [id*="dialog"],
                 [class*="alert"], [id*="alert"],
                 [class*="notification"], [id*="notification"],
-                [class*="update"], [id*="update"],
-                [class*="security"], [id*="security"],
-                [class*="warning"], [id*="warning"],
-                [role="dialog"], [role="alertdialog"],
-                [aria-modal="true"], [aria-hidden="false"],
-                [style*="position: fixed"],
-                [style*="position: absolute"],
-                [style*="z-index"],
-                [style*="display: flex"],
-                [style*="display: grid"],
-                [style*="justify-content: center"],
-                [style*="align-items: center"],
-                [style*="margin: auto"],
+                [class*="banner"], [id*="banner"],
+                [class*="float"], [id*="float"],
+                [class*="sticky"], [id*="sticky"],
+                [class*="fixed"], [id*="fixed"],
+                [class*="ad"], [id*="ad"],
+                [class*="promo"], [id*="promo"],
+                [class*="sponsor"], [id*="sponsor"],
+                [class*="social"], [id*="social"],
+                [class*="newsletter"], [id*="newsletter"],
+                [class*="subscribe"], [id*="subscribe"],
+                iframe:not([src*="about:blank"]),
+                div[style*="position: fixed"],
+                div[style*="position:fixed"],
+                div[style*="z-index"],
+                div[style*="display: flex"],
+                div[style*="display: grid"],
+                div[style*="justify-content: center"],
+                div[style*="align-items: center"],
+                div[style*="margin: auto"],
                 button, a,
                 [class*="mcafee"], [id*="mcafee"],
                 [class*="scan"], [id*="scan"],
@@ -697,7 +748,35 @@ class AdBlocker:
                 [class*="hianime"], [id*="hianime"],
                 [class*="push-notifications"], [id*="push-notifications"],
                 [class*="chrome-mobile"], [id*="chrome-mobile"],
-                [class*="learn-more"], [id*="learn-more"] {
+                [class*="learn-more"], [id*="learn-more"],
+                /* Specific rules for hianime.tv */
+                [class*="hianime-ad"], [id*="hianime-ad"],
+                [class*="hianime-popup"], [id*="hianime-popup"],
+                [class*="hianime-overlay"], [id*="hianime-overlay"],
+                [class*="hianime-modal"], [id*="hianime-modal"],
+                [class*="hianime-float"], [id*="hianime-float"],
+                [class*="hianime-sticky"], [id*="hianime-sticky"],
+                [class*="hianime-banner"], [id*="hianime-banner"],
+                [class*="hianime-promo"], [id*="hianime-promo"],
+                [class*="hianime-sponsor"], [id*="hianime-sponsor"],
+                [class*="hianime-social"], [id*="hianime-social"],
+                [class*="hianime-newsletter"], [id*="hianime-newsletter"],
+                [class*="hianime-subscribe"], [id*="hianime-subscribe"],
+                /* Block all iframes */
+                iframe[src*="ads"],
+                iframe[src*="banner"],
+                iframe[src*="popup"],
+                iframe[src*="overlay"],
+                iframe[src*="promo"],
+                iframe[src*="sponsor"],
+                iframe[src*="analytics"],
+                iframe[src*="tracker"],
+                iframe[src*="pixel"],
+                iframe[src*="counter"],
+                iframe[src*="stats"],
+                iframe[src*="metrics"],
+                iframe[src*="log"],
+                iframe[src*="track"] {
                     display: none !important;
                     visibility: hidden !important;
                     opacity: 0 !important;
@@ -710,6 +789,13 @@ class AdBlocker:
                     margin: -1px !important;
                     overflow: hidden !important;
                     border: 0 !important;
+                }
+
+                /* Force enable scrolling */
+                html, body {
+                    overflow: auto !important;
+                    position: static !important;
+                    pointer-events: auto !important;
                 }
             """
             soup.head.append(style_tag) if soup.head else soup.append(style_tag)
@@ -726,123 +812,138 @@ class AdBlocker:
                     window.print = function() { return null; };
                     window.showModalDialog = function() { return null; };
                     window.showModal = function() { return null; };
+                    window.Notification = undefined;
+                    window.Notification.requestPermission = () => Promise.resolve('denied');
                     
-                    // Remove event listeners
-                    function removeEventListeners() {
-                        document.querySelectorAll('*').forEach(el => {
-                            el.onclick = null;
-                            el.onmouseover = null;
-                            el.onmouseout = null;
-                            el.onmousedown = null;
-                            el.onmouseup = null;
-                            el.ontouchstart = null;
-                            el.ontouchend = null;
-                            el.oncontextmenu = null;
-                            el.onfocus = null;
-                            el.onblur = null;
+                    // Block navigation attempts
+                    window.onbeforeunload = null;
+                    window.history.pushState = () => {};
+                    window.history.replaceState = () => {};
+                    
+                    // Aggressive element removal
+                    function removeAds() {
+                        const selectors = [
+                            '[class*="popup"]', '[id*="popup"]',
+                            '[class*="modal"]', '[id*="modal"]',
+                            '[class*="overlay"]', '[id*="overlay"]',
+                            '[class*="dialog"]', '[id*="dialog"]',
+                            '[class*="alert"]', '[id*="alert"]',
+                            '[class*="notification"]', '[id*="notification"]',
+                            '[class*="banner"]', '[id*="banner"]',
+                            '[class*="float"]', '[id*="float"]',
+                            '[class*="sticky"]', '[id*="sticky"]',
+                            '[class*="fixed"]', '[id*="fixed"]',
+                            '[class*="ad"]', '[id*="ad"]',
+                            '[class*="promo"]', '[id*="promo"]',
+                            '[class*="sponsor"]', '[id*="sponsor"]',
+                            '[class*="social"]', '[id*="social"]',
+                            '[class*="newsletter"]', '[id*="newsletter"]',
+                            '[class*="subscribe"]', '[id*="subscribe"]',
+                            'iframe:not([src*="about:blank"])',
+                            'div[style*="position: fixed"]',
+                            'div[style*="position:fixed"]',
+                            'div[style*="z-index"]',
+                            // Specific selectors for hianime.tv
+                            '[class*="hianime-ad"]', '[id*="hianime-ad"]',
+                            '[class*="hianime-popup"]', '[id*="hianime-popup"]',
+                            '[class*="hianime-overlay"]', '[id*="hianime-overlay"]',
+                            '[class*="hianime-modal"]', '[id*="hianime-modal"]',
+                            '[class*="hianime-float"]', '[id*="hianime-float"]',
+                            '[class*="hianime-sticky"]', '[id*="hianime-sticky"]',
+                            '[class*="hianime-banner"]', '[id*="hianime-banner"]',
+                            '[class*="hianime-promo"]', '[id*="hianime-promo"]',
+                            '[class*="hianime-sponsor"]', '[id*="hianime-sponsor"]',
+                            '[class*="hianime-social"]', '[id*="hianime-social"]',
+                            '[class*="hianime-newsletter"]', '[id*="hianime-newsletter"]',
+                            '[class*="hianime-subscribe"]', '[id*="hianime-subscribe"]'
+                        ];
+                        
+                        selectors.forEach(selector => {
+                            document.querySelectorAll(selector).forEach(element => {
+                                element.remove();
+                            });
                         });
-                    }
-                    
-                    // Preemptive removal before rendering
-                    function preemptiveBlock() {
-                        document.querySelectorAll('div, section, aside, article, dialog, button, a').forEach(el => {
-                            if (el.tagName === 'BODY' || el.tagName === 'HTML') return;
-                            const text = el.innerText || '';
-                            if (/mcafee|scan|virus|trojan|hianime|malvertising|black-friday|apk|public wi-fi|whatsapp|stay safe|at risk|push notifications|chrome mobile|learn more/i.test(text)) {
-                                el.remove();
-                                return;
-                            }
-                            const style = window.getComputedStyle(el);
-                            const zIndex = parseInt(style.zIndex) || 0;
+                        
+                        // Remove elements with fixed position or high z-index
+                        document.querySelectorAll('*').forEach(element => {
+                            const style = window.getComputedStyle(element);
                             if (style.position === 'fixed' || 
-                                style.position === 'absolute' ||
-                                zIndex > 0 ||
-                                style.display.includes('flex') ||
-                                style.display.includes('grid') ||
-                                style.justifyContent.includes('center') ||
-                                style.alignItems.includes('center') ||
-                                style.margin.includes('auto')) {
-                                el.remove();
-                                return;
+                                style.position === 'sticky' ||
+                                parseInt(style.zIndex) > 100) {
+                                element.remove();
+                            }
+                        });
+                        
+                        // Remove iframes
+                        document.querySelectorAll('iframe').forEach(iframe => {
+                            const src = iframe.src.toLowerCase();
+                            if (src.includes('ads') || 
+                                src.includes('banner') || 
+                                src.includes('popup') || 
+                                src.includes('overlay') || 
+                                src.includes('promo') || 
+                                src.includes('sponsor') || 
+                                src.includes('analytics') || 
+                                src.includes('tracker') || 
+                                src.includes('pixel') || 
+                                src.includes('counter') || 
+                                src.includes('stats') || 
+                                src.includes('metrics') || 
+                                src.includes('log') || 
+                                src.includes('track')) {
+                                iframe.remove();
                             }
                         });
                     }
                     
-                    // Continuous removal using requestAnimationFrame
-                    function removePopups() {
-                        document.querySelectorAll('div, section, aside, article, dialog, button, a').forEach(el => {
-                            if (el.tagName === 'BODY' || el.tagName === 'HTML') return;
-                            const text = el.innerText || '';
-                            if (/mcafee|scan|virus|trojan|hianime|malvertising|black-friday|apk|public wi-fi|whatsapp|stay safe|at risk|push notifications|chrome mobile|learn more/i.test(text)) {
-                                el.remove();
-                                return;
-                            }
-                            const style = window.getComputedStyle(el);
-                            const zIndex = parseInt(style.zIndex) || 0;
-                            if (style.position === 'fixed' || 
-                                style.position === 'absolute' ||
-                                zIndex > 0 ||
-                                style.display.includes('flex') ||
-                                style.display.includes('grid') ||
-                                style.justifyContent.includes('center') ||
-                                style.alignItems.includes('center') ||
-                                style.margin.includes('auto')) {
-                                el.remove();
-                                return;
-                            }
-                        });
-                        requestAnimationFrame(removePopups);
-                    }
+                    // Run immediately and set up observers
+                    removeAds();
                     
-                    // Run preemptive block and event listeners immediately
-                    preemptiveBlock();
-                    removeEventListeners();
-                    requestAnimationFrame(removePopups);
-                    requestAnimationFrame(removeEventListeners);
-                    
-                    // Watch for DOM changes
-                    new MutationObserver(preemptiveBlock).observe(document.body, {
+                    // Create a mutation observer to remove new ads
+                    new MutationObserver(mutations => {
+                        removeAds();
+                    }).observe(document.documentElement, {
                         childList: true,
                         subtree: true,
                         attributes: true,
-                        characterData: true,
-                        attributeOldValue: true
+                        characterData: true
                     });
                     
-                    // Block navigation attempts
-                    Object.defineProperty(window, 'location', {
-                        set: function() { return; },
-                        get: function() { return window.location; }
-                    });
-                    history.pushState = function() { return; };
-                    history.replaceState = function() { return; };
+                    // Run periodically to catch dynamically added content
+                    setInterval(removeAds, 100);
                     
                     // Force scrollable
-                    document.body.style.overflow = 'auto';
-                    document.documentElement.style.overflow = 'auto';
+                    document.documentElement.style.setProperty('overflow', 'auto', 'important');
+                    document.body.style.setProperty('overflow', 'auto', 'important');
                 })();
             """
             soup.body.append(script_tag) if soup.body else soup.append(script_tag)
             
-            # Preemptively remove potential pop-up elements
-            for element in soup.find_all(['div', 'section', 'aside', 'article', 'dialog', 'button', 'a']):
+            # Pre-emptively remove potential ad elements
+            for element in soup.find_all(['div', 'iframe', 'script', 'style', 'link']):
                 if element.name in ['html', 'body', 'head']:
                     continue
-                class_name = ' '.join(element.get('class', []))
-                id_name = element.get('id', '')
-                text = element.get_text().lower()
+                    
+                # Check attributes for ad-related content
+                for attr in element.attrs:
+                    attr_value = str(element[attr]).lower()
+                    if any(keyword in attr_value for keyword in [
+                        'ad', 'popup', 'overlay', 'modal', 'banner', 'promo',
+                        'sponsor', 'social', 'newsletter', 'subscribe', 'notification',
+                        'alert', 'fixed', 'sticky', 'float', 'hianime'
+                    ]):
+                        element.decompose()
+                        break
+                
+                # Check for fixed positioning
                 style = element.get('style', '')
-                if any(keyword in text for keyword in ['mcafee', 'scan', 'virus', 'trojan', 'hianime', 'malvertising', 'black-friday', 'apk', 'public wi-fi', 'whatsapp', 'stay safe', 'at risk', 'push notifications', 'chrome mobile', 'learn more']):
-                    element.decompose()
-                    continue
                 if any(prop in style.lower() for prop in [
-                    'position: fixed', 'position: absolute',
-                    'z-index', 'display: flex', 'display: grid',
-                    'justify-content: center', 'align-items: center', 'margin: auto'
+                    'position: fixed', 'position:fixed', 'position: absolute',
+                    'position:absolute', 'z-index', 'display: flex', 'display:flex'
                 ]):
                     element.decompose()
                     continue
-                
+            
             return str(soup)
         except Exception as e:
             print(f"Error blocking ads: {e}")

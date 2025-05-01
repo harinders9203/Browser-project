@@ -1,3 +1,29 @@
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+                            QHBoxLayout, QLineEdit, QPushButton, QDialog, 
+                            QListWidget, QListWidgetItem, QMessageBox, QProgressBar)
+from PyQt5.QtCore import Qt, QUrl, QMutex
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
+import os
+import json
+from datetime import datetime
+
+# Create bookmark icons if they don't exist
+if not os.path.exists('bookmark.png'):
+    # Create a simple bookmark icon
+    from PIL import Image, ImageDraw
+    img = Image.new('RGBA', (32, 32), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.polygon([(8, 8), (24, 8), (24, 28), (16, 24), (8, 28)], fill=(128, 128, 128, 255))
+    img.save('bookmark.png')
+
+if not os.path.exists('bookmark_filled.png'):
+    # Create a filled bookmark icon
+    img = Image.new('RGBA', (32, 32), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.polygon([(8, 8), (24, 8), (24, 28), (16, 24), (8, 28)], fill=(255, 215, 0, 255))
+    img.save('bookmark_filled.png')
+
 from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QTabWidget, QAction, QToolButton, QLineEdit, QProgressBar, QHBoxLayout, QPushButton, QInputDialog, QMessageBox, QFileDialog, QSizePolicy, QMenu, QDialog, QListWidget, QListWidgetItem, QToolBar
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QUrl, QMutex
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEnginePage
@@ -21,6 +47,7 @@ from adblocker import AdBlocker  # Fix import name
 from phishing_detector import PhishingDetector
 from bookmarks import BookmarkManager
 from bookmark_history_manager import BookmarkHistoryManager
+from datetime import datetime
 
 class ServoThread(QThread):
     content_ready = pyqtSignal(str, str)
@@ -48,7 +75,7 @@ class ServoThread(QThread):
         self.dark_mode_manager = dark_mode_manager
         self.ad_blocker = AdBlocker()
         self.ad_blocker_enabled = True
-        
+
         # Initialize ad blocker with aggressive settings
         print("Initializing ad blocker with aggressive settings...")
         try:
@@ -611,151 +638,24 @@ class ServoThread(QThread):
             print(f"Emitting loading_finished signal for tab_id: {tab_id}")
 
     def _block_ads(self, html_content, base_url):
-        """Block ads and popups in the HTML content"""
+        """Block ads in HTML content"""
         if not self.ad_blocker_enabled:
             return html_content
             
         try:
-            # First apply the ad blocker's rules
-            filtered_content = self.ad_blocker.block_ads(html_content)
-            
-            # Add security headers and enhanced blocking rules
-            security_headers = """
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-                <meta http-equiv="X-Frame-Options" content="DENY">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: https:; frame-src 'none'; frame-ancestors 'none'; popup 'none';">
-                <style>
-                    /* Enhanced ad and popup blocking rules */
-                    [class*="popup"], [id*="popup"],
-                    [class*="modal"], [id*="modal"],
-                    [class*="overlay"], [id*="overlay"],
-                    [class*="dialog"], [id*="dialog"],
-                    [class*="alert"], [id*="alert"],
-                    [class*="notification"], [id*="notification"],
-                    [class*="banner"], [id*="banner"],
-                    [class*="float"], [id*="float"],
-                    [class*="sticky"], [id*="sticky"],
-                    [class*="fixed"], [id*="fixed"],
-                    [class*="ad"], [id*="ad"],
-                    [class*="promo"], [id*="promo"],
-                    [class*="sponsor"], [id*="sponsor"],
-                    [class*="social"], [id*="social"],
-                    [class*="newsletter"], [id*="newsletter"],
-                    [class*="subscribe"], [id*="subscribe"],
-                    iframe:not([src*="about:blank"]),
-                    div[style*="position: fixed"],
-                    div[style*="position:fixed"],
-                    div[style*="z-index: 9"],
-                    div[style*="z-index:9"],
-                    div[style*="z-index: 99"],
-                    div[style*="z-index:99"],
-                    div[style*="z-index: 999"],
-                    div[style*="z-index:999"],
-                    div[style*="z-index: 9999"],
-                    div[style*="z-index:9999"] {
-                        display: none !important;
-                        visibility: hidden !important;
-                        opacity: 0 !important;
-                        pointer-events: none !important;
-                        height: 0 !important;
-                        width: 0 !important;
-                        position: absolute !important;
-                        top: -9999px !important;
-                        left: -9999px !important;
-                        z-index: -999 !important;
-                        clip: rect(0, 0, 0, 0) !important;
-                        overflow: hidden !important;
-                    }
-                    
-                    /* Block floating elements */
-                    body * {
-                        position: static !important;
-                        top: auto !important;
-                        left: auto !important;
-                        right: auto !important;
-                        bottom: auto !important;
-                    }
-                </style>
-                <script>
-                    (function() {
-                        // Block all popup-related functions
-                        window.open = function() { return null; };
-                        window.alert = function() { return null; };
-                        window.confirm = function() { return null; };
-                        window.prompt = function() { return null; };
-                        
-                        // Block common ad-related properties
-                        Object.defineProperty(window, 'canRunAds', { value: false });
-                        Object.defineProperty(window, 'canShowAds', { value: false });
-                        
-                        // Aggressive popup and overlay removal
-                        function removeAds() {
-                            const selectors = [
-                                '[class*="popup"]', '[id*="popup"]',
-                                '[class*="modal"]', '[id*="modal"]',
-                                '[class*="overlay"]', '[id*="overlay"]',
-                                '[class*="dialog"]', '[id*="dialog"]',
-                                '[class*="alert"]', '[id*="alert"]',
-                                '[class*="notification"]', '[id*="notification"]',
-                                '[class*="banner"]', '[id*="banner"]',
-                                '[class*="float"]', '[id*="float"]',
-                                '[class*="sticky"]', '[id*="sticky"]',
-                                '[class*="fixed"]', '[id*="fixed"]',
-                                '[class*="ad"]', '[id*="ad"]',
-                                '[class*="promo"]', '[id*="promo"]',
-                                '[class*="sponsor"]', '[id*="sponsor"]',
-                                '[class*="social"]', '[id*="social"]',
-                                '[class*="newsletter"]', '[id*="newsletter"]',
-                                '[class*="subscribe"]', '[id*="subscribe"]',
-                                'iframe:not([src*="about:blank"])'
-                            ];
-                            
-                            selectors.forEach(selector => {
-                                document.querySelectorAll(selector).forEach(element => {
-                                    element.remove();
-                                });
-                            });
-                            
-                            // Remove elements with fixed position or high z-index
-                            document.querySelectorAll('*').forEach(element => {
-                                const style = window.getComputedStyle(element);
-                                if (style.position === 'fixed' || 
-                                    style.position === 'sticky' ||
-                                    parseInt(style.zIndex) > 100) {
-                                    element.remove();
-                                }
-                            });
-                        }
-                        
-                        // Run immediately and set up observers
-                        removeAds();
-                        
-                        // Create a mutation observer to remove new ads
-                        const observer = new MutationObserver(mutations => {
-                            removeAds();
-                        });
-                        
-                        // Start observing the document with the configured parameters
-                        observer.observe(document.documentElement, {
-                            childList: true,
-                            subtree: true
-                        });
-                        
-                        // Run periodically to catch dynamically added content
-                        setInterval(removeAds, 1000);
-                    })();
-                </script>
-            """
-            
-            # Insert security headers at the start of head
-            if '<head>' in filtered_content:
-                filtered_content = filtered_content.replace('<head>', '<head>' + security_headers)
-            else:
-                filtered_content = security_headers + filtered_content
+            # First check if the domain itself is an ad domain
+            if self._is_ad_url(base_url):
+                return "<html><body><h1>Ad Blocked</h1><p>This domain has been blocked by the ad blocker.</p></body></html>"
                 
-            return filtered_content
+            # Block ads in the content
+            blocked_content = self.ad_blocker.block_ads(html_content)
+            
+            # Block security popups
+            blocked_content = self.ad_blocker.block_security_popups(blocked_content)
+            
+            return blocked_content
         except Exception as e:
-            print(f"Error in _block_ads: {e}")
+            print(f"Error blocking ads: {e}")
             return html_content
 
     def set_user_agent(self, ua_index):
@@ -781,6 +681,33 @@ class CustomWebEnginePage(QWebEnginePage):
     def __init__(self, parent_tab):
         super().__init__(parent_tab)
         self.parent_tab = parent_tab
+        self.urlChanged.connect(self.on_url_changed)
+        self.loadFinished.connect(self.on_load_finished)
+
+    def on_url_changed(self, url):
+        """Handle URL changes"""
+        if url.isValid():
+            url_str = url.toString()
+            self.parent_tab.url_bar.setText(url_str)
+            self.parent_tab.current_url = url_str
+            # Record in history
+            if not url_str.startswith('about:'):
+                title = self.title()
+                if not title:
+                    title = url_str
+                self.parent_tab.add_to_history(url_str, title)
+            self.parent_tab.update_bookmark_button()
+
+    def on_load_finished(self, success):
+        """Handle page load completion"""
+        if success:
+            url = self.url().toString()
+            title = self.title()
+            if not title:
+                title = url
+            # Update history with final title
+            if not url.startswith('about:'):
+                self.parent_tab.add_to_history(url, title)
 
     def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
         url_str = url.toString()
@@ -796,35 +723,61 @@ class BrowserTab(QWidget):
         super().__init__()
         self.servo_thread = servo_thread
         self.tab_id = tab_id
+        self.current_url = url
         self.dark_mode_manager = dark_mode_manager
         self.history_processor = history_processor
         self.parent_renderer = parent_renderer
+        
+        # Initialize state variables
+        self.bookmarks = []
+        self.history = []
         self.vpn_handler = None
-        self.current_url = ""
         self.content_loaded = False
         self.last_content_path = None
         self.update_lock = QMutex()
         self.handling_input = False
         self.default_search_engine = "https://duckduckgo.com/?t=h_&q={query}&ia=web"
         self.bookmark_manager = None  # Will be set by CustomWebRenderer
+        self.is_loading = False  # Track loading state
 
-        layout = QVBoxLayout()
+        # Load data
+        self.load_bookmarks()
+        self.load_history()
+
+        # Create layout
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Create navigation bar
         nav_layout = QHBoxLayout()
+        nav_layout.setContentsMargins(5, 5, 5, 5)
+        nav_layout.setSpacing(5)
 
         # Back button
-        self.back_button = QPushButton("←")
+        self.back_button = QPushButton("⬅️")
         self.back_button.setFixedSize(30, 30)
+        self.back_button.setToolTip("Go back")
         self.back_button.clicked.connect(self.go_back)
         nav_layout.addWidget(self.back_button)
 
+        # Forward button
+        self.forward_button = QPushButton("➡️")
+        self.forward_button.setFixedSize(30, 30)
+        self.forward_button.setToolTip("Go forward")
+        self.forward_button.clicked.connect(self.go_forward)
+        nav_layout.addWidget(self.forward_button)
+
         # Reload button
-        self.reload_button = QPushButton("↻")
+        self.reload_button = QPushButton("🔄")
         self.reload_button.setFixedSize(30, 30)
+        self.reload_button.setToolTip("Reload page")
         self.reload_button.clicked.connect(self.reload_page)
         nav_layout.addWidget(self.reload_button)
 
         # URL bar
         self.url_bar = QLineEdit()
+        self.url_bar.setPlaceholderText("Enter URL or search term")
         self.url_bar.returnPressed.connect(self.handle_input)
         nav_layout.addWidget(self.url_bar)
 
@@ -835,12 +788,12 @@ class BrowserTab(QWidget):
         self.bookmark_button.clicked.connect(self.toggle_bookmark)
         nav_layout.addWidget(self.bookmark_button)
 
-        # Bookmarks list button
-        self.bookmarks_list_button = QPushButton("📚")
-        self.bookmarks_list_button.setFixedSize(30, 30)
-        self.bookmarks_list_button.setToolTip("Show bookmarks")
-        self.bookmarks_list_button.clicked.connect(self.show_bookmarks)
-        nav_layout.addWidget(self.bookmarks_list_button)
+        # History button
+        self.history_button = QPushButton("🕒")
+        self.history_button.setFixedSize(30, 30)
+        self.history_button.setToolTip("Show history")
+        self.history_button.clicked.connect(self.show_history)
+        nav_layout.addWidget(self.history_button)
 
         layout.addLayout(nav_layout)
 
@@ -854,6 +807,12 @@ class BrowserTab(QWidget):
         self.web_view = QWebEngineView()
         self.web_page = CustomWebEnginePage(self)
         self.web_view.setPage(self.web_page)
+        
+        # Connect loading signals
+        self.web_view.loadStarted.connect(self._on_load_started)
+        self.web_view.loadProgress.connect(self._on_load_progress)
+        self.web_view.loadFinished.connect(self._on_load_finished)
+        
         layout.addWidget(self.web_view)
 
         self.setLayout(layout)
@@ -865,232 +824,472 @@ class BrowserTab(QWidget):
 
         self.servo_thread.phishing_detected.connect(self.show_phishing_warning)  # Connect to phishing signal
 
-    def toggle_bookmark(self):
-        """Add or remove the current page from bookmarks"""
-        if not self.current_url or self.current_url == "about:start":
-            return
+    def _on_load_started(self):
+        """Handle web view load started"""
+        self.is_loading = True
+        self.progress.show()
+        if self.parent_renderer:
+            self.parent_renderer.show_loading(self.tab_id)
 
-        if not self.bookmark_manager:
-            print("Error: bookmark_manager is not initialized")
-            return
+    def _on_load_progress(self, progress):
+        """Handle web view load progress"""
+        self.progress.setValue(progress)
 
+    def _on_load_finished(self, success):
+        """Handle web view load finished"""
+        self.is_loading = False
+        self.progress.hide()
+        if self.parent_renderer:
+            self.parent_renderer.hide_loading(self.tab_id)
+
+    def load_bookmarks(self):
+        """Load bookmarks from file"""
         try:
-            if self.bookmark_manager.is_bookmarked(self.current_url):
-                self.bookmark_manager.remove_bookmark(self.current_url)
-                QMessageBox.information(self, "Bookmark Removed", "Page has been removed from bookmarks")
+            if os.path.exists('bookmarks.json'):
+                with open('bookmarks.json', 'r') as f:
+                    self.bookmarks = json.load(f)
             else:
-                title = self.web_view.page().title() or urllib.parse.urlparse(self.current_url).netloc
-                title, ok = QInputDialog.getText(
-                    self, 
-                    "Add Bookmark",
-                    "Enter bookmark name:",
-                    text=title
-                )
-                if ok and title:
-                    self.bookmark_manager.add_bookmark(title, self.current_url)
-                    QMessageBox.information(self, "Bookmark Added", "Page has been added to bookmarks")
-
-            self.update_bookmark_button()
+                self.bookmarks = []
         except Exception as e:
-            print(f"Error in toggle_bookmark: {e}")
-            QMessageBox.warning(self, "Error", f"Failed to manage bookmark: {str(e)}")
+            print(f"Error loading bookmarks: {e}")
+            self.bookmarks = []
+
+    def save_bookmarks(self):
+        """Save bookmarks to file"""
+        try:
+            with open('bookmarks.json', 'w') as f:
+                json.dump(self.bookmarks, f, indent=2)
+        except Exception as e:
+            print(f"Error saving bookmarks: {e}")
+
+    def load_history(self):
+        """Load history from file"""
+        try:
+            if os.path.exists('history.json'):
+                with open('history.json', 'r') as f:
+                    self.history = json.load(f)
+            else:
+                self.history = []
+        except Exception as e:
+            print(f"Error loading history: {e}")
+            self.history = []
+
+    def save_history(self):
+        """Save history to file"""
+        try:
+            with open('history.json', 'w') as f:
+                json.dump(self.history, f, indent=2)
+        except Exception as e:
+            print(f"Error saving history: {e}")
+
+    def add_to_history(self, url, title):
+        """Add a URL to history"""
+        if not url or not title:
+            return
+            
+        # Remove any existing entry with the same URL
+        self.history = [entry for entry in self.history if entry['url'] != url]
+        
+        # Add new entry at the beginning
+        self.history.insert(0, {
+            'url': url,
+            'title': title,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+        # Keep only the last 100 entries
+        if len(self.history) > 100:
+            self.history = self.history[:100]
+            
+        self.save_history()
+
+    def toggle_bookmark(self):
+        """Toggle bookmark for current page"""
+        current_url = self.url_bar.text()
+        if not current_url:
+            return
+
+        # Check if already bookmarked
+        for bookmark in self.bookmarks:
+            if bookmark['url'] == current_url:
+                self.bookmarks.remove(bookmark)
+                self.save_bookmarks()
+                self.update_bookmark_button()
+            return
+
+        # Add new bookmark
+        def html_ready(html):
+            title = self._extract_title_from_content(html)
+            if not title:
+                title = current_url
+
+            self.bookmarks.append({
+                'url': current_url,
+                'title': title,
+                'timestamp': datetime.now().isoformat()
+            })
+            self.save_bookmarks()
+            self.update_bookmark_button()
+
+        # Get HTML asynchronously
+        self.web_view.page().toHtml(html_ready)
 
     def update_bookmark_button(self):
-        """Update bookmark button appearance based on current URL status"""
-        if self.current_url and self.bookmark_manager and self.bookmark_manager.is_bookmarked(self.current_url):
-            self.bookmark_button.setText("★")
-            self.bookmark_button.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
-                    border: none;
-                    color: #FFD700;  /* Bright gold color */
-                    font-size: 20px;
-                    padding: 5px;
-                }
-                QPushButton:hover {
-                    color: #FFA500;  /* Orange on hover */
-                }
-            """)
-            self.bookmark_button.setToolTip("Remove bookmark")
-        else:
-            self.bookmark_button.setText("☆")
-            self.bookmark_button.setStyleSheet("""
-                QPushButton {
-                    background-color: transparent;
-                    border: none;
-                    color: #808080;  /* Gray color */
-                    font-size: 20px;
-                    padding: 5px;
-                }
-                QPushButton:hover {
-                    color: #FFD700;  /* Gold on hover */
-                }
-            """)
-            self.bookmark_button.setToolTip("Add bookmark")
+        """Update bookmark button state"""
+        current_url = self.url_bar.text()
+        is_bookmarked = any(bookmark['url'] == current_url for bookmark in self.bookmarks)
+        self.bookmark_button.setIcon(QIcon("bookmark_filled.png" if is_bookmarked else "bookmark.png"))
 
     def show_bookmarks(self):
-        """Show bookmarks manager window"""
-        if not self.bookmark_manager:
-            print("Error: bookmark_manager is not initialized")
-            return
+        """Show bookmarks dialog"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Bookmarks")
+        dialog.setMinimumSize(400, 500)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                border-radius: 10px;
+            }
+            QListWidget {
+                background-color: #ffffff;
+                border: 2px solid #e9ecef;
+                border-radius: 10px;
+                padding: 5px;
+                font-size: 14px;
+            }
+            QListWidget::item {
+                padding: 10px;
+                border-radius: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #e7f5ff;
+                color: #007bff;
+                border: none;
+            }
+            QListWidget::item:hover:!selected {
+                background-color: #f8f9fa;
+            }
+            QPushButton {
+                background-color: #f8f9fa;
+                color: #495057;
+                border: 2px solid #e9ecef;
+                border-radius: 20px;
+                padding: 8px 20px;
+                font-size: 14px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #e7f5ff;
+                color: #007bff;
+                border: 2px solid #007bff;
+            }
+            QPushButton:pressed {
+                background-color: #007bff;
+                color: #ffffff;
+            }
+        """)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
 
-        try:
-            # Create and show the bookmark history manager window
-            self.bookmark_history_window = BookmarkHistoryManager()
-            self.bookmark_history_window.show()
-            
-        except Exception as e:
-            print(f"Error showing bookmarks: {e}")
-            QMessageBox.warning(self, "Error", f"Failed to show bookmarks: {str(e)}")
+        list_widget = QListWidget()
+        for bookmark in self.bookmarks:
+            item = QListWidgetItem(bookmark['title'])
+            item.setData(Qt.UserRole, bookmark['url'])
+            list_widget.addItem(item)
 
-    def show_bookmark_manager(self):
-        """Show the bookmark manager dialog"""
-        if not self.bookmark_manager:
-            print("Error: bookmark_manager is not initialized")
-            return
+        layout.addWidget(list_widget)
 
-        try:
-            dialog = QDialog(self)
-            dialog.setWindowTitle("Bookmark Manager")
-            dialog.setMinimumSize(500, 400)
-            
-            layout = QVBoxLayout()
-            
-            # Create list widget for bookmarks
-            list_widget = QListWidget()
-            list_widget.setAlternatingRowColors(True)
-            list_widget.setStyleSheet("""
-                QListWidget {
-                    background-color: #2d2d2d;
-                    border: 1px solid #424242;
-                }
-                QListWidget::item {
-                    padding: 10px;
-                    color: #e0e0e0;
-                }
-                QListWidget::item:alternate {
-                    background-color: #3d3d3d;
-                }
-                QListWidget::item:selected {
-                    background-color: #4a4a4a;
-                }
-            """)
-            
-            # Add bookmarks to list
-            bookmarks = self.bookmark_manager.get_bookmarks()
-            for title, url in bookmarks.items():
-                item = QListWidgetItem(f"{title}\n{url}")
-                item.setData(Qt.UserRole, (title, url))
+        buttons = QHBoxLayout()
+        buttons.setSpacing(10)
+        
+        open_button = QPushButton("Open")
+        delete_button = QPushButton("Delete")
+        close_button = QPushButton("Close")
+
+        open_button.clicked.connect(lambda: self.open_bookmark(list_widget))
+        delete_button.clicked.connect(lambda: self.delete_bookmark(list_widget))
+        close_button.clicked.connect(dialog.close)
+
+        buttons.addWidget(open_button)
+        buttons.addWidget(delete_button)
+        buttons.addWidget(close_button)
+        layout.addLayout(buttons)
+
+        dialog.exec_()
+
+    def show_history(self):
+        """Show history dialog"""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("History")
+        dialog.setMinimumSize(500, 600)
+        dialog.setStyleSheet("""
+            QDialog {
+                background-color: #ffffff;
+                border-radius: 10px;
+            }
+            QListWidget {
+                background-color: #ffffff;
+                border: 2px solid #e9ecef;
+                border-radius: 10px;
+                padding: 5px;
+                font-size: 14px;
+            }
+            QListWidget::item {
+                padding: 10px;
+                border-radius: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #e7f5ff;
+                color: #007bff;
+                border: none;
+            }
+            QListWidget::item:hover:!selected {
+                background-color: #f8f9fa;
+            }
+            QPushButton {
+                background-color: #f8f9fa;
+                color: #495057;
+                border: 2px solid #e9ecef;
+                border-radius: 20px;
+                padding: 8px 20px;
+                font-size: 14px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #e7f5ff;
+                color: #007bff;
+                border: 2px solid #007bff;
+            }
+            QPushButton:pressed {
+                background-color: #007bff;
+                color: #ffffff;
+            }
+            QLineEdit {
+                background-color: #ffffff;
+                border: 2px solid #e9ecef;
+                border-radius: 20px;
+                padding: 8px 15px;
+                font-size: 14px;
+                margin: 5px;
+            }
+            QLineEdit:focus {
+                border: 2px solid #007bff;
+            }
+        """)
+        
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # Create search bar
+        search_bar = QLineEdit()
+        search_bar.setPlaceholderText("Search history...")
+        layout.addWidget(search_bar)
+        
+        # Create list widget for history
+        list_widget = QListWidget()
+        layout.addWidget(list_widget)
+        
+        def load_history():
+            list_widget.clear()
+            for entry in self.history:
+                item = QListWidgetItem(f"{entry['title']} - {entry['url']}")
+                item.setData(Qt.UserRole, entry['url'])
                 list_widget.addItem(item)
-            
-            layout.addWidget(list_widget)
-            
-            # Add buttons
-            button_layout = QHBoxLayout()
-            
-            edit_button = QPushButton("Edit")
-            edit_button.clicked.connect(lambda: self.edit_bookmark(list_widget))
-            
-            delete_button = QPushButton("Delete")
-            delete_button.clicked.connect(lambda: self.delete_bookmark(list_widget))
-            
-            button_layout.addWidget(edit_button)
-            button_layout.addWidget(delete_button)
-            layout.addLayout(button_layout)
-            
-            dialog.setLayout(layout)
-            dialog.exec_()
-        except Exception as e:
-            print(f"Error showing bookmark manager: {e}")
-            QMessageBox.warning(self, "Error", f"Failed to show bookmark manager: {str(e)}")
-
-    def edit_bookmark(self, list_widget):
-        """Edit the selected bookmark"""
-        try:
+        
+        def search_history():
+            query = search_bar.text().lower()
+            list_widget.clear()
+            for entry in self.history:
+                if query in entry['title'].lower() or query in entry['url'].lower():
+                    item = QListWidgetItem(f"{entry['title']} - {entry['url']}")
+                    item.setData(Qt.UserRole, entry['url'])
+                    list_widget.addItem(item)
+        
+        def open_history_entry():
             current_item = list_widget.currentItem()
-            if not current_item:
-                return
-                
-            title, url = current_item.data(Qt.UserRole)
-            new_title, ok = QInputDialog.getText(
-                self, 
-                "Edit Bookmark",
-                "Enter new title:",
-                text=title
-            )
-            
-            if ok and new_title:
-                self.bookmark_manager.remove_bookmark(url)
-                self.bookmark_manager.add_bookmark(new_title, url)
-                current_item.setText(f"{new_title}\n{url}")
-                current_item.setData(Qt.UserRole, (new_title, url))
-                self.update_bookmark_button()
-        except Exception as e:
-            print(f"Error editing bookmark: {e}")
-            QMessageBox.warning(self, "Error", f"Failed to edit bookmark: {str(e)}")
-
-    def delete_bookmark(self, list_widget):
-        """Delete the selected bookmark"""
-        try:
+            if current_item:
+                url = current_item.data(Qt.UserRole)
+                self.navigate_to(url)
+                dialog.close()
+        
+        def delete_history_entry():
             current_item = list_widget.currentItem()
-            if not current_item:
-                return
-                
-            title, url = current_item.data(Qt.UserRole)
+            if current_item:
+                url = current_item.data(Qt.UserRole)
+                self.history = [entry for entry in self.history if entry['url'] != url]
+                self.save_history()
+                load_history()
+        
+        def clear_all_history():
             reply = QMessageBox.question(
-                self,
-                "Confirm Deletion",
-                f"Are you sure you want to delete the bookmark:\n{title}?",
+                dialog, 
+                "Clear History",
+                "Are you sure you want to clear all history?",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No
             )
-            
             if reply == QMessageBox.Yes:
-                self.bookmark_manager.remove_bookmark(url)
-                list_widget.takeItem(list_widget.row(current_item))
-                self.update_bookmark_button()
-        except Exception as e:
-            print(f"Error deleting bookmark: {e}")
-            QMessageBox.warning(self, "Error", f"Failed to delete bookmark: {str(e)}")
+                self.history = []
+                self.save_history()
+                load_history()
+        
+        # Connect signals
+        search_bar.textChanged.connect(search_history)
+        list_widget.itemDoubleClicked.connect(open_history_entry)
+        
+        # Create buttons
+        buttons = QHBoxLayout()
+        buttons.setSpacing(10)
+        
+        open_button = QPushButton("Open")
+        delete_button = QPushButton("Delete")
+        clear_button = QPushButton("Clear All")
+        close_button = QPushButton("Close")
+
+        open_button.clicked.connect(open_history_entry)
+        delete_button.clicked.connect(delete_history_entry)
+        clear_button.clicked.connect(clear_all_history)
+        close_button.clicked.connect(dialog.close)
+
+        buttons.addWidget(open_button)
+        buttons.addWidget(delete_button)
+        buttons.addWidget(clear_button)
+        buttons.addWidget(close_button)
+        layout.addLayout(buttons)
+
+        # Load initial history
+        load_history()
+        dialog.exec_()
+
+    def open_bookmark(self, list_widget):
+        """Open selected bookmark"""
+        current_item = list_widget.currentItem()
+        if current_item:
+            url = current_item.data(Qt.UserRole)
+            self.url_bar.setText(url)
+            self.handle_input()
+
+    def delete_bookmark(self, list_widget):
+        """Delete selected bookmark"""
+        current_item = list_widget.currentItem()
+        if current_item:
+            url = current_item.data(Qt.UserRole)
+            self.bookmarks = [b for b in self.bookmarks if b['url'] != url]
+            self.save_bookmarks()
+            list_widget.takeItem(list_widget.row(current_item))
+            self.update_bookmark_button()
 
     def update_url_bar_style(self, dark_mode=False):
+        """Update URL bar style based on dark mode"""
         if dark_mode:
-            style = """ 
-                padding: 8px; 
-                font-size: 16px; 
-                border: 1px solid #424242; 
-                border-radius: 24px; 
-                background-color: #2d2d2d; 
-                color: #e0e0e0;
+            url_bar_style = """
+                QLineEdit {
+                    background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border: 2px solid #424242;
+                    border-radius: 20px;
+                    padding: 8px 15px;
+                    font-size: 14px;
+                    selection-background-color: #bb86fc;
+                    margin: 5px;
+                }
+                QLineEdit:hover {
+                    border: 2px solid #bb86fc;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #bb86fc;
+                    background-color: #333333;
+                }
             """
             button_style = """
-                background-color: #2d2d2d;
-                color: #e0e0e0;
-                border: 1px solid #424242;
-                border-radius: 15px;
-                font-size: 18px;
+                QPushButton {
+                    background-color: #2d2d2d;
+                    color: #e0e0e0;
+                    border: 2px solid #424242;
+                    border-radius: 15px;
+                    padding: 5px 15px;
+                    font-size: 16px;
+                    min-width: 30px;
+                    min-height: 30px;
+                    margin: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #3d3d3d;
+                    border: 2px solid #bb86fc;
+                }
+                QPushButton:pressed {
+                    background-color: #bb86fc;
+                    color: #000000;
+                }
+                QPushButton:disabled {
+                    background-color: #1d1d1d;
+                    color: #666666;
+                    border: 2px solid #333333;
+                }
             """
         else:
-            style = """
-                padding: 8px; 
-                font-size: 16px; 
-                border: 1px solid #d0d0d0; 
-                border-radius: 24px; 
-                background-color: #fff; 
-                color: #333;
+            url_bar_style = """
+                QLineEdit {
+                    background-color: #ffffff;
+                    color: #333333;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 20px;
+                    padding: 8px 15px;
+                    font-size: 14px;
+                    selection-background-color: #007bff;
+                    margin: 5px;
+                }
+                QLineEdit:hover {
+                    border: 2px solid #007bff;
+                }
+                QLineEdit:focus {
+                    border: 2px solid #007bff;
+                    background-color: #f8f9fa;
+                }
             """
             button_style = """
-                background-color: #f5f5f5;
-                color: #333333;
-                border: 1px solid #d0d0d0;
-                border-radius: 15px;
-                font-size: 18px;
+                QPushButton {
+                    background-color: #f8f9fa;
+                    color: #333333;
+                    border: 2px solid #e0e0e0;
+                    border-radius: 15px;
+                    padding: 5px 15px;
+                    font-size: 16px;
+                    min-width: 30px;
+                    min-height: 30px;
+                    margin: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #e9ecef;
+                    border: 2px solid #007bff;
+                }
+                QPushButton:pressed {
+                    background-color: #007bff;
+                    color: #ffffff;
+                }
+                QPushButton:disabled {
+                    background-color: #f1f3f5;
+                    color: #adb5bd;
+                    border: 2px solid #dee2e6;
+                }
             """
 
-        self.url_bar.setStyleSheet(style)
+        self.url_bar.setStyleSheet(url_bar_style)
+        self.back_button.setStyleSheet(button_style)
+        self.forward_button.setStyleSheet(button_style)
+        self.reload_button.setStyleSheet(button_style)
+        self.bookmark_button.setStyleSheet(button_style)
+        self.history_button.setStyleSheet(button_style)
         
-        for button in [self.back_button, self.reload_button, self.bookmark_button, self.bookmarks_list_button]:
-            button.setStyleSheet(button_style)
+        # Update button icons with modern emojis
+        self.back_button.setText("⬅️")
+        self.forward_button.setText("➡️")
+        self.reload_button.setText("🔄")
+        self.bookmark_button.setText("🔖")
+        self.history_button.setText("🕒")
 
     def apply_dark_mode_to_content(self, ok):
         if not self.update_lock.tryLock():
@@ -1212,7 +1411,12 @@ class BrowserTab(QWidget):
             print("Finished handling input")
 
     def go_back(self):
+        """Go back in history"""
         self.web_view.back()
+
+    def go_forward(self):
+        """Go forward in history"""
+        self.web_view.forward()
 
     def update_content(self, content_path):
         if not content_path:
@@ -1425,6 +1629,131 @@ class CustomWebRenderer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Servo Web Browser")
+        self.setMinimumSize(1024, 768)
+        
+        # Set window style
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f8f9fa;
+            }
+            QTabWidget::pane {
+                border: none;
+                background-color: #ffffff;
+                border-radius: 10px;
+                margin-top: -1px;
+            }
+            QTabBar::tab {
+                background-color: #f8f9fa;
+                color: #495057;
+                border: none;
+                padding: 10px 20px;
+                margin: 0 2px;
+                border-top-left-radius: 10px;
+                border-top-right-radius: 10px;
+                font-size: 13px;
+                min-width: 150px;
+            }
+            QTabBar::tab:selected {
+                background-color: #ffffff;
+                color: #007bff;
+                border-bottom: 2px solid #007bff;
+            }
+            QTabBar::tab:hover:!selected {
+                background-color: #e9ecef;
+                color: #212529;
+            }
+            QTabBar::close-button {
+                image: url(close.png);
+                subcontrol-position: right;
+                margin: 2px;
+            }
+            QTabBar::close-button:hover {
+                background-color: #ff6b6b;
+                border-radius: 2px;
+            }
+            QToolButton#newTabButton {
+                background-color: transparent;
+                border: none;
+                color: #007bff;
+                font-size: 20px;
+                padding: 5px;
+                margin: 2px;
+            }
+            QToolButton#newTabButton:hover {
+                background-color: #e9ecef;
+                border-radius: 5px;
+            }
+            QProgressBar {
+                border: none;
+                background-color: transparent;
+                height: 2px;
+            }
+            QProgressBar::chunk {
+                background-color: #007bff;
+            }
+            QMenuBar {
+                background-color: #f8f9fa;
+                border-bottom: 1px solid #dee2e6;
+            }
+            QMenuBar::item {
+                padding: 8px 15px;
+                background-color: transparent;
+                color: #495057;
+            }
+            QMenuBar::item:selected {
+                background-color: #e9ecef;
+                color: #007bff;
+                border-radius: 5px;
+            }
+            QMenu {
+                background-color: #ffffff;
+                border: 1px solid #dee2e6;
+                border-radius: 5px;
+                padding: 5px;
+            }
+            QMenu::item {
+                padding: 8px 25px;
+                border-radius: 3px;
+            }
+            QMenu::item:selected {
+                background-color: #e9ecef;
+                color: #007bff;
+            }
+            QScrollBar:vertical {
+                border: none;
+                background-color: #f8f9fa;
+                width: 10px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background-color: #adb5bd;
+                border-radius: 5px;
+                min-height: 20px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background-color: #007bff;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0;
+            }
+            QScrollBar:horizontal {
+                border: none;
+                background-color: #f8f9fa;
+                height: 10px;
+                margin: 0;
+            }
+            QScrollBar::handle:horizontal {
+                background-color: #adb5bd;
+                border-radius: 5px;
+                min-width: 20px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background-color: #007bff;
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0;
+            }
+        """)
         
         # Initialize main application window
         screen = QApplication.primaryScreen()
@@ -1438,26 +1767,26 @@ class CustomWebRenderer(QMainWindow):
         self.tab_counter = 0
         self.tabs_dict = {}
         self.current_search_engine = "https://duckduckgo.com/?t=h_&q={query}&ia=web"
+        
+        # Initialize ad blocker
+        self.ad_blocker = AdBlocker()
         self.ad_blocker_enabled = True
         self.phishing_detection_enabled = True
         
         self.history_processor = BrowserHistoryProcessor("./browser_data/history.json")
-        self.bookmark_manager = BookmarkManager()  # Fixed initialization
+        self.bookmark_manager = BookmarkManager()
         
         # Initialize components
         self.servo_thread = ServoThread(self)
         self.servo_thread.content_ready.connect(self.update_tab_content)
         self.servo_thread.loading_started.connect(self.show_loading)
         self.servo_thread.loading_finished.connect(self.hide_loading)
+        self.servo_thread.ad_blocker_enabled = True  # Ensure ad blocker is enabled in servo thread
 
         # Create new tab button
         self.new_tab_button = QToolButton()
         self.new_tab_button.setText("+")
         self.new_tab_button.setToolTip("New Tab")
-
-        # Initialize ad blocker state (without visible button)
-        self.ad_blocker_enabled = True
-        self.servo_thread.ad_blocker_enabled = True
         
         # Initialize dark mode manager
         self.dark_mode_manager = DarkModeManager(self, self.servo_thread, self.tabs_dict, None, self.new_tab_button)
