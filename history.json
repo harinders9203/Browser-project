@@ -1,23 +1,388 @@
 [
   {
-    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_rjsfowfx/start_page_1.html",
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_smm8_8tl/start_page_1.html",
     "title": "Start Page",
-    "timestamp": "2025-05-01T23:27:15.254886"
+    "timestamp": "2025-06-18T12:49:05.623849"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=c+language&ia=web",
+    "title": "c language at DuckDuckGo",
+    "timestamp": "2025-06-18T12:47:31.156105"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=c language",
+    "title": "https://duckduckgo.com/?q=c language",
+    "timestamp": "2025-06-18T12:47:28.875893"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_4t7lwcb_/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-06-18T12:47:21.737751"
+  },
+  {
+    "url": "https://worldofwarships.com/",
+    "title": "World of\u00a0Warships",
+    "timestamp": "2025-06-18T12:04:49.288789"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_0on5vzby/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-06-18T12:00:35.754222"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_ev8el0ag/tab_1_fallback.html",
+    "title": "duckduckgo.com",
+    "timestamp": "2025-06-18T11:05:00.524150"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=chatpgt&ia=web",
+    "title": "chatpgt at DuckDuckGo",
+    "timestamp": "2025-06-18T10:55:50.808154"
+  },
+  {
+    "url": "https://openai.com/chatgpt/overview/",
+    "title": "ChatGPT | OpenAI",
+    "timestamp": "2025-06-18T10:55:42.280646"
+  },
+  {
+    "url": "https://chatgpt.com/",
+    "title": "ChatGPT",
+    "timestamp": "2025-06-18T10:55:16.850986"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=chatpgt",
+    "title": "https://duckduckgo.com/?q=chatpgt",
+    "timestamp": "2025-06-18T10:55:02.615840"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_ev8el0ag/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-06-18T10:48:22.182894"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=heelo",
+    "title": "https://duckduckgo.com/?q=heelo",
+    "timestamp": "2025-06-18T10:44:14.803430"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_bqw9nbtu/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-06-18T10:43:36.229051"
+  },
+  {
+    "url": "data:text/html;charset=UTF-8,%0A                %3C%21DOCTYPE html%3E%0A                %3Chtml%3E%0A                %3Chead%3E%0A                    %3Cmeta charset%3D%22utf-8%22%3E%0A                    %3Ctitle%3EAd Blocker Status%3C%2Ftitle%3E%0A                    %3Cstyle%3E%0A                        body %7B %0A                            font-family%3A Arial%2C sans-serif%3B %0A                            text-align%3A center%3B %0A                            padding%3A 2%25%3B %0A                            font-size%3A 1.2em%3B %0A                            background-color%3A %23fff%3B %0A                            color%3A %23333%3B %0A                        %7D%0A                        .notification %7B%0A                            background-color%3A %23f0f8ff%3B%0A                            padding%3A 20px%3B%0A                            border-radius%3A 10px%3B%0A                            box-shadow%3A 0 4px 8px rgba%280%2C0%2C0%2C0.1%29%3B%0A                            margin%3A 100px auto%3B%0A                            max-width%3A 500px%3B%0A                        %7D%0A                        .status-icon %7B%0A                            font-size%3A 48px%3B%0A                            margin-bottom%3A 20px%3B%0A                        %7D%0A                    %3C%2Fstyle%3E%0A                    %3Cscript%3E%0A                        setTimeout%28function%28%29 %7B%0A                            window.history.back%28%29%3B%0A                        %7D%2C 2000%29%3B%0A                    %3C%2Fscript%3E%0A                %3C%2Fhead%3E%0A                %3Cbody%3E%0A                    %3Cdiv class%3D%22notification%22%3E%0A                        %3Cdiv class%3D%22status-icon%22%3E\ud83d\udeab%3C%2Fdiv%3E%0A                        %3Ch2%3EAd Blocker Disabled%3C%2Fh2%3E%0A                        %3Cp%3EAd blocking is turned off%3C%2Fp%3E%0A                    %3C%2Fdiv%3E%0A                %3C%2Fbody%3E%0A                %3C%2Fhtml%3E%0A                ",
+    "title": "Ad Blocker Status",
+    "timestamp": "2025-06-18T10:43:34.094212"
+  },
+  {
+    "url": "data:text/html;charset=UTF-8,%0A                %3C%21DOCTYPE html%3E%0A                %3Chtml%3E%0A                %3Chead%3E%0A                    %3Cmeta charset%3D%22utf-8%22%3E%0A                    %3Ctitle%3EAd Blocker Status%3C%2Ftitle%3E%0A                    %3Cstyle%3E%0A                        body %7B %0A                            font-family%3A Arial%2C sans-serif%3B %0A                            text-align%3A center%3B %0A                            padding%3A 2%25%3B %0A                            font-size%3A 1.2em%3B %0A                            background-color%3A %23fff%3B %0A                            color%3A %23333%3B %0A                        %7D%0A                        .notification %7B%0A                            background-color%3A %23f0f8ff%3B%0A                            padding%3A 20px%3B%0A                            border-radius%3A 10px%3B%0A                            box-shadow%3A 0 4px 8px rgba%280%2C0%2C0%2C0.1%29%3B%0A                            margin%3A 100px auto%3B%0A                            max-width%3A 500px%3B%0A                        %7D%0A                        .status-icon %7B%0A                            font-size%3A 48px%3B%0A                            margin-bottom%3A 20px%3B%0A                        %7D%0A                    %3C%2Fstyle%3E%0A                    %3Cscript%3E%0A                        setTimeout%28function%28%29 %7B%0A                            window.history.back%28%29%3B%0A                        %7D%2C 2000%29%3B%0A                    %3C%2Fscript%3E%0A                %3C%2Fhead%3E%0A                %3Cbody%3E%0A                    %3Cdiv class%3D%22notification%22%3E%0A                        %3Cdiv class%3D%22status-icon%22%3E\ud83d\udee1\ufe0f%3C%2Fdiv%3E%0A                        %3Ch2%3EAd Blocker Enabled%3C%2Fh2%3E%0A                        %3Cp%3EBlocking ads and trackers%3C%2Fp%3E%0A                    %3C%2Fdiv%3E%0A                %3C%2Fbody%3E%0A                %3C%2Fhtml%3E%0A                ",
+    "title": "Ad Blocker Status",
+    "timestamp": "2025-06-18T10:43:32.041525"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_b2q4brhh/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-06-18T10:02:33.203274"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=hello&ia=web",
+    "title": "hello at DuckDuckGo",
+    "timestamp": "2025-06-18T10:01:52.654554"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=hello",
+    "title": "https://duckduckgo.com/?q=hello",
+    "timestamp": "2025-06-18T10:01:47.211314"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_mzutibez/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-06-18T09:12:50.450535"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_noh2veie/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-06-17T00:19:58.569971"
+  },
+  {
+    "url": "data:text/html;charset=UTF-8,%0A                %3C%21DOCTYPE html%3E%0A                %3Chtml%3E%0A                %3Chead%3E%0A                    %3Cmeta charset%3D%22utf-8%22%3E%0A                    %3Ctitle%3EPhishing Detection Status%3C%2Ftitle%3E%0A                    %3Cstyle%3E%0A                        body %7B %0A                            font-family%3A Arial%2C sans-serif%3B %0A                            text-align%3A center%3B %0A                            padding%3A 2%25%3B %0A                            font-size%3A 1.2em%3B %0A                            background-color%3A %23fff%3B %0A                            color%3A %23333%3B %0A                        %7D%0A                        .notification %7B%0A                            background-color%3A %23f0f8ff%3B%0A                            padding%3A 20px%3B%0A                            border-radius%3A 10px%3B%0A                            box-shadow%3A 0 4px 8px rgba%280%2C0%2C0%2C0.1%29%3B%0A                            margin%3A 100px auto%3B%0A                            max-width%3A 500px%3B%0A                        %7D%0A                        .status-icon %7B%0A                            font-size%3A 48px%3B%0A                            margin-bottom%3A 20px%3B%0A                        %7D%0A                    %3C%2Fstyle%3E%0A                    %3Cscript%3E%0A                        setTimeout%28function%28%29 %7B%0A                            window.history.back%28%29%3B%0A                        %7D%2C 2000%29%3B%0A                    %3C%2Fscript%3E%0A                %3C%2Fhead%3E%0A                %3Cbody%3E%0A                    %3Cdiv class%3D%22notification%22%3E%0A                        %3Cdiv class%3D%22status-icon%22%3E\ud83d\udee1\ufe0f%3C%2Fdiv%3E%0A                        %3Ch2%3EPhishing Detection Enabled%3C%2Fh2%3E%0A                        %3Cp%3EProtecting you from suspicious websites%3C%2Fp%3E%0A                    %3C%2Fdiv%3E%0A                %3C%2Fbody%3E%0A                %3C%2Fhtml%3E%0A                ",
+    "title": "Phishing Detection Status",
+    "timestamp": "2025-06-02T15:54:53.684721"
+  },
+  {
+    "url": "data:text/html;charset=UTF-8,%0A                %3C%21DOCTYPE html%3E%0A                %3Chtml%3E%0A                %3Chead%3E%0A                    %3Cmeta charset%3D%22utf-8%22%3E%0A                    %3Ctitle%3EPhishing Detection Status%3C%2Ftitle%3E%0A                    %3Cstyle%3E%0A                        body %7B %0A                            font-family%3A Arial%2C sans-serif%3B %0A                            text-align%3A center%3B %0A                            padding%3A 2%25%3B %0A                            font-size%3A 1.2em%3B %0A                            background-color%3A %23fff%3B %0A                            color%3A %23333%3B %0A                        %7D%0A                        .notification %7B%0A                            background-color%3A %23f0f8ff%3B%0A                            padding%3A 20px%3B%0A                            border-radius%3A 10px%3B%0A                            box-shadow%3A 0 4px 8px rgba%280%2C0%2C0%2C0.1%29%3B%0A                            margin%3A 100px auto%3B%0A                            max-width%3A 500px%3B%0A                        %7D%0A                        .status-icon %7B%0A                            font-size%3A 48px%3B%0A                            margin-bottom%3A 20px%3B%0A                        %7D%0A                    %3C%2Fstyle%3E%0A                    %3Cscript%3E%0A                        setTimeout%28function%28%29 %7B%0A                            window.history.back%28%29%3B%0A                        %7D%2C 2000%29%3B%0A                    %3C%2Fscript%3E%0A                %3C%2Fhead%3E%0A                %3Cbody%3E%0A                    %3Cdiv class%3D%22notification%22%3E%0A                        %3Cdiv class%3D%22status-icon%22%3E\ud83d\udeab%3C%2Fdiv%3E%0A                        %3Ch2%3EPhishing Detection Disabled%3C%2Fh2%3E%0A                        %3Cp%3EProtection is turned off%3C%2Fp%3E%0A                    %3C%2Fdiv%3E%0A                %3C%2Fbody%3E%0A                %3C%2Fhtml%3E%0A                ",
+    "title": "Phishing Detection Status",
+    "timestamp": "2025-06-02T15:54:52.735127"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_fxd0_5zg/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-06-02T15:54:11.733937"
+  },
+  {
+    "url": "https://www.hianimes.to/home",
+    "title": "HiAnime Free Anime Streaming Homepage",
+    "timestamp": "2025-05-02T16:07:37.386525"
   },
   {
     "url": "https://www.hianimes.to/",
     "title": "HiAnime - Watch Anime Online, Free Anime Streaming Online on HiAnime",
-    "timestamp": "2025-05-01T23:23:13.397229"
+    "timestamp": "2025-05-02T16:07:31.251248"
   },
   {
     "url": "https://duckduckgo.com/?q=hianime&ia=web",
     "title": "hianime at DuckDuckGo",
-    "timestamp": "2025-05-01T23:22:58.474787"
+    "timestamp": "2025-05-02T16:06:55.223426"
   },
   {
     "url": "https://duckduckgo.com/?q=hianime",
     "title": "https://duckduckgo.com/?q=hianime",
-    "timestamp": "2025-05-01T23:22:56.260939"
+    "timestamp": "2025-05-02T16:06:50.853879"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_6y1pedrr/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T16:03:57.171930"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_1bhh6vof/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T16:00:27.223518"
+  },
+  {
+    "url": "https://www.hellomagazine.com/",
+    "title": "HELLO! - Daily royal, celebrity, fashion, beauty & lifestyle news",
+    "timestamp": "2025-05-02T15:56:43.797483"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_1bhh6vof/tab_1_fallback.html",
+    "title": "file:///C:/Users/cc/AppData/Local/Temp/servo_1bhh6vof/tab_1_fallback.html",
+    "timestamp": "2025-05-02T15:55:50.941527"
+  },
+  {
+    "url": "https://www.homeloans.com/",
+    "title": "https://www.homeloans.com",
+    "timestamp": "2025-05-02T15:52:47.321275"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_3u56mgty/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T15:36:59.676838"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_elzskk_u/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T15:30:12.691128"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=whatismyip&ia=web",
+    "title": "whatismyip at DuckDuckGo",
+    "timestamp": "2025-05-02T15:04:51.169200"
+  },
+  {
+    "url": "https://whatismyipaddress.com/",
+    "title": "What Is My IP Address - See Your Public Address - IPv4 & IPv6",
+    "timestamp": "2025-05-02T15:03:40.543569"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=whatismyip",
+    "title": "https://duckduckgo.com/?q=whatismyip",
+    "timestamp": "2025-05-02T15:01:30.759371"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_fgnjjhon/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T15:01:00.698896"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_tgront15/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T15:00:27.146710"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=www.google.com%27&ia=web",
+    "title": "www.google.com' at DuckDuckGo",
+    "timestamp": "2025-05-02T14:58:45.437583"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=www.google.com%27",
+    "title": "https://duckduckgo.com/?q=www.google.com%27",
+    "timestamp": "2025-05-02T14:58:39.073228"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_l6dwhcv6/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T14:55:54.271936"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_rdt2j99u/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T14:47:29.370791"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=github&ia=web",
+    "title": "github at DuckDuckGo",
+    "timestamp": "2025-05-02T14:25:27.379752"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=github",
+    "title": "https://duckduckgo.com/?q=github",
+    "timestamp": "2025-05-02T14:25:23.566930"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_ktq979l5/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T14:25:03.822095"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_4t1t4ri1/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T13:24:24.289984"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=hi&ia=web",
+    "title": "hi at DuckDuckGo",
+    "timestamp": "2025-05-02T13:24:19.688659"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=hi",
+    "title": "https://duckduckgo.com/?q=hi",
+    "timestamp": "2025-05-02T13:24:14.906794"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_eqbp_i0d/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T11:23:43.936902"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_3foneccr/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T11:17:26.416291"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_hzty1nge/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T11:09:55.255514"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_njkhd4_g/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T11:04:21.782285"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_b6ihznol/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T11:01:07.192524"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_5hdeh_yb/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T10:59:11.223111"
+  },
+  {
+    "url": "https://www.policybazaar.com/",
+    "title": "https://www.policybazaar.com",
+    "timestamp": "2025-05-02T10:59:06.994266"
+  },
+  {
+    "url": "https://www.playgames.com/",
+    "title": "https://www.playgames.com",
+    "timestamp": "2025-05-02T10:58:59.584366"
+  },
+  {
+    "url": "https://www.acko.com/",
+    "title": "ACKO Insurance | Buy Car, Bike, Health & Travel Insurance Online | Welcome Change",
+    "timestamp": "2025-05-02T10:58:53.360576"
+  },
+  {
+    "url": "https://www.google.com/search?q=github&sca_esv=f86fefb562370d31&ei=jlcUaLCKJqS6wPAP8cK-8QM&ved=0ahUKEwiwiZCohoSNAxUkHRAIHXGhLz4Q4dUDCBA&uact=5&oq=github&gs_lp=Egxnd3Mtd2l6LXNlcnAiBmdpdGh1YjITEC4YgAQYsQMY0QMYQxjHARiKBTIIEAAYgAQYsQMyChAAGIAEGEMYigUyChAAGIAEGEMYigUyCBAAGIAEGLEDMgUQABiABDIIEAAYgAQYsQMyCBAAGIAEGLEDMggQABiABBixAzIIEAAYgAQYsQMyIhAuGIAEGLEDGNEDGEMYxwEYigUYlwUY3AQY3gQY4ATYAQFIlApQAFjvB3AAeAGQAQCYAbMEoAGdEKoBCTItMS4yLjAuMrgBA8gBAPgBAZgCBaACshHCAhYQLhiABBixAxjRAxhDGIMBGMcBGIoFwgIQEAAYgAQYsQMYQxiDARiKBcICCxAAGIAEGLEDGIMBwgINEAAYgAQYsQMYQxiKBcICJRAuGIAEGLEDGNEDGEMYgwEYxwEYigUYlwUY3AQY3gQY4ATYAQHCAg0QLhiABBixAxhDGIoFwgIFEC4YgATCAgsQLhiABBjHARivAcICChAAGIAEGLEDGAqYAwC6BgYIARABGBSSBwUzLTIuM6AHkTWyBwUzLTIuM7gHshE&sclient=gws-wiz-serp",
+    "title": "github - Google Search",
+    "timestamp": "2025-05-02T10:56:48.686310"
+  },
+  {
+    "url": "https://www.google.com/search?q=hello",
+    "title": "hello - Google Search",
+    "timestamp": "2025-05-02T10:56:43.928970"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_qbwmqosn/tab_1_google_fallback.html",
+    "title": "Google",
+    "timestamp": "2025-05-02T10:56:32.141734"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_qbwmqosn/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T10:56:24.708462"
+  },
+  {
+    "url": "data:text/html;charset=UTF-8,%0A            %3C%21DOCTYPE html%3E%0A            %3Chtml%3E%0A            %3Chead%3E%0A                %3Cmeta charset%3D%22utf-8%22%3E%0A                %3Ctitle%3ESearch Engine Changed%3C%2Ftitle%3E%0A                %3Cstyle%3E%0A                    body %7B %0A                        font-family%3A Arial%2C sans-serif%3B %0A                        text-align%3A center%3B %0A                        padding%3A 2%25%3B %0A                        font-size%3A 1.2em%3B %0A                        background-color%3A %23fff%3B %0A                        color%3A %23333%3B %0A                    %7D%0A                    .notification %7B%0A                        background-color%3A %23f0f8ff%3B%0A                        padding%3A 20px%3B%0A                        border-radius%3A 10px%3B%0A                        box-shadow%3A 0 4px 8px rgba%280%2C0%2C0%2C0.1%29%3B%0A                        margin%3A 100px auto%3B%0A                        max-width%3A 500px%3B%0A                    %7D%0A                %3C%2Fstyle%3E%0A                %3Cscript%3E%0A                    setTimeout%28function%28%29 %7B%0A                        window.history.back%28%29%3B%0A                    %7D%2C 2000%29%3B%0A                %3C%2Fscript%3E%0A            %3C%2Fhead%3E%0A            %3Cbody%3E%0A                %3Cdiv class%3D%22notification%22%3E%0A                    %3Ch2%3ESearch Engine Changed%3C%2Fh2%3E%0A                    %3Cp%3EDefault search engine set to %3Cstrong%3EGoogle%3C%2Fstrong%3E%3C%2Fp%3E%0A                %3C%2Fdiv%3E%0A            %3C%2Fbody%3E%0A            %3C%2Fhtml%3E%0A            ",
+    "title": "Search Engine Changed",
+    "timestamp": "2025-05-02T10:56:22.354887"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_yhudxpu9/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T10:52:22.338067"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=goolr&ia=web",
+    "title": "goolr at DuckDuckGo",
+    "timestamp": "2025-05-02T10:51:30.563900"
+  },
+  {
+    "url": "https://duckduckgo.com/?q=goolr",
+    "title": "https://duckduckgo.com/?q=goolr",
+    "timestamp": "2025-05-02T10:51:21.891989"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_8swncr_f/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T10:51:15.280328"
+  },
+  {
+    "url": "https://github.com/",
+    "title": "GitHub \u00b7 Build and ship software on a single, collaborative platform \u00b7 GitHub",
+    "timestamp": "2025-05-02T10:49:54.592730"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_huhd108y/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T10:49:38.556884"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_mgi952nh/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T10:48:02.408346"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_dz3ix9f0/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T10:41:04.131345"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_b1dofkgn/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T10:40:39.912416"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_9s4qzo88/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T01:00:06.069666"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_gppsfdct/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T00:57:40.344120"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_viyi1z6w/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-02T00:55:04.900655"
+  },
+  {
+    "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_rjsfowfx/start_page_1.html",
+    "title": "Start Page",
+    "timestamp": "2025-05-01T23:27:15.254886"
   },
   {
     "url": "file:///C:/Users/cc/AppData/Local/Temp/servo_w_kmh6h5/start_page_1.html",
